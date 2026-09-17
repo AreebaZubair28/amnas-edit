@@ -1,4 +1,11 @@
 node_modules/
 .next/
-.env.local
-.env*.local
+out/
+.vercel/
+*.log
+
+.env*
+!.env.example
+
+.DS_Store
+Thumbs.db

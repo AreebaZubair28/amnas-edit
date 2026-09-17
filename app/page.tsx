@@ -1,5 +1,5 @@
-import Catalog from "@/components/Catalog";
+import HomePage from "@/components/HomePage";
 
 export default function Home() {
-  return <Catalog />;
+  return <HomePage />;
 }
