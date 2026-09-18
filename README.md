@@ -288,9 +288,3 @@ These are optional and are not required for the current version:
 - Next.js Image optimization
 - more granular loading/error states
 - accessibility and performance audits
-
-## Repository Notes
-
-- `next-env.d.ts` and `package-lock.json` are generated/managed files and should normally be committed.
-- `.next/`, `node_modules/`, `.vercel/`, local environment files, and logs should not be committed.
-- The database schema is designed to be safe to re-run without deleting application data.
