@@ -1,22 +1,18 @@
 # Amna's Edit
 
-Amna's Edit is a full-stack, inquiry-based fashion catalogue built with Next.js and Supabase. It combines a public editorial storefront with an owner-only administration area for managing products, variants, promotions, reviews, policies, and website settings.
+Amna's Edit is a full-stack fashion catalogue built with Next.js and Supabase. It combines an editorial-style storefront with a secure owner dashboard for managing products, variants, promotions, reviews, policies, and website content.
 
-> This project intentionally does **not** include a cart, checkout, online payment processing, or customer accounts. Customers browse products and contact the business directly through WhatsApp or Instagram.
-
-## Live Demo
-
-[amnas-edit.vercel.app](https://amnas-edit.vercel.app/)
+The platform follows an inquiry-based model rather than a traditional e-commerce checkout flow, allowing customers to browse products and contact the business directly through WhatsApp or Instagram.
 
 ## Features
 
-### Public storefront
+### Storefront
 
-- Editorial home page with hero content, new arrivals, journal/story content, customer reviews, and contact calls-to-action
-- Full product collection
-- Search with fuzzy matching and abbreviation support
-- Filters for:
-  - product status
+- Editorial-style homepage
+- New arrivals section
+- Searchable and filterable product catalogue
+- Product filtering by:
+  - status
   - category
   - brand
   - gender
@@ -26,40 +22,41 @@ Amna's Edit is a full-stack, inquiry-based fashion catalogue built with Next.js 
   - Coming In
   - Preorder / Sourced
 - Product detail modal
-- Product color / variant support
-- Variant-specific image, details, and price
+- Product color and variant support
+- Variant-specific images, prices, and details
 - Product recommendations
 - Scheduled promotions and discount rules
-- WhatsApp and Instagram inquiry links
-- Approved customer reviews
+- Customer reviews
 - Public policies page
+- WhatsApp and Instagram inquiry options
 
-### Owner administration
+### Admin Dashboard
 
-The owner area is split into dedicated routes:
+The owner dashboard provides dedicated sections for managing the website:
 
-- `/admin` — overview and inventory statistics
-- `/admin/products` — product and variant management
-- `/admin/promotions` — promotion and rule management
-- `/admin/reviews` — review moderation
-- `/admin/settings` — website content, contact details, and policy settings
+- `/admin` — dashboard overview
+- `/admin/products` — products and variants
+- `/admin/promotions` — promotions and discount rules
+- `/admin/reviews` — customer review moderation
+- `/admin/settings` — website content, policies, and contact information
 
-Owner functionality includes:
+The owner can:
 
-- Create, edit, and delete products
-- Upload product and variant images to Supabase Storage
-- Manage color variants
-- Manage product status, gender, pricing, brand, and category relationships
-- Create scheduled percentage or fixed-value promotions
-- Target promotions by status, category, brand, gender, product, or all products
-- Approve, hide, and delete customer reviews
+- Create, update, and delete products
+- Upload product and variant images
+- Manage product variants and colors
+- Assign brands and categories
+- Manage product pricing, gender, and status
+- Create scheduled promotions
+- Apply promotions to products, categories, brands, genders, statuses, or the full catalogue
+- Approve, hide, and delete reviews
+- Edit website policies
 - Edit About content
-- Edit delivery, return, preorder, in-stock, customs-delay, privacy, and terms content
-- Edit Instagram, WhatsApp, and TikTok contact details
+- Manage Instagram, WhatsApp, and TikTok details
 
 ## Tech Stack
 
-- **Next.js 15**
+- **Next.js 16.3.5**
 - **React 19**
 - **TypeScript**
 - **Supabase**
@@ -105,121 +102,53 @@ types/
 └── product.ts
 ```
 
-## Database Overview
+## Database
 
-The Supabase schema contains the following main tables:
+The project uses Supabase PostgreSQL for application data.
 
-- `profiles` — owner authorization
-- `products` — main product records
-- `categories` — product categories
-- `brands` — product brands
-- `product_variants` — color / variant records
-- `site_settings` — editable site content and policies
-- `promotions` — sale and promotion definitions
-- `promotion_rules` — promotion targeting rules
-- `product_reviews` — customer reviews and approval state
+Main tables include:
 
-The schema also creates the public `product-images` Storage bucket used by the admin image uploader.
+- `profiles`
+- `products`
+- `categories`
+- `brands`
+- `product_variants`
+- `site_settings`
+- `promotions`
+- `promotion_rules`
+- `product_reviews`
 
-## Security
+Supabase Storage is used for product and variant images.
 
-The application uses Supabase Row Level Security.
+Row Level Security is used to restrict administrative operations to the owner account.
 
-Public visitors can read storefront data and submit reviews, while product, promotion, settings, and moderation writes are restricted to an authenticated user whose `profiles.role` is `owner`.
+`schema.sql` contains the consolidated database schema for new setups, while `security_fix.sql` contains a one-time security migration for earlier database versions.
 
-The frontend uses only the Supabase **publishable** key.
+## Getting Started
 
-Never commit:
-
-- `.env.local`
-- a Supabase service-role key
-- private credentials
-- owner passwords
-
-## Environment Variables
-
-Create `.env.local` from `.env.example`:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_SUPABASE_PUBLISHABLE_KEY
-NEXT_PUBLIC_WHATSAPP_NUMBER=923XXXXXXXXX
-NEXT_PUBLIC_INSTAGRAM_URL=https://instagram.com/YOUR_INSTAGRAM
-```
-
-The WhatsApp and Instagram environment variables are used as fallbacks. The owner can manage the primary contact values from Website Settings.
-
-## Local Setup
-
-### 1. Clone the repository
+Clone the repository:
 
 ```bash
 git clone https://github.com/AreebaZubair28/amnas-edit.git
 cd amnas-edit
 ```
 
-### 2. Install dependencies
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-### 3. Create a Supabase project
+Create a `.env.local` file based on `.env.example` and add the required values:
 
-Create a Supabase project and run:
-
-```text
-supabase/schema.sql
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
+NEXT_PUBLIC_WHATSAPP_NUMBER=your_whatsapp_number
+NEXT_PUBLIC_INSTAGRAM_URL=your_instagram_url
 ```
 
-in the Supabase SQL Editor.
-
-### 4. Create the owner account
-
-Create the owner under **Authentication → Users** in Supabase.
-
-Then insert the user's UUID into `profiles`:
-
-```sql
-insert into public.profiles (id, role)
-values ('YOUR-AUTH-USER-UUID', 'owner')
-on conflict (id) do update
-set role = 'owner';
-```
-
-Authentication alone does not grant administration access. Owner-only database writes are protected by Row Level Security.
-
-### 5. Add brands
-
-Categories are seeded by `schema.sql`.
-
-Brands are business-specific, so add the required brand records to `public.brands` before creating products in the admin dashboard.
-
-Example:
-
-```sql
-insert into public.brands (name, slug)
-values ('Example Brand', 'example-brand')
-on conflict (name) do nothing;
-```
-
-### 6. Configure environment variables
-
-Copy:
-
-```text
-.env.example
-```
-
-to:
-
-```text
-.env.local
-```
-
-and add the Supabase project values.
-
-### 7. Run locally
+Run the development server:
 
 ```bash
 npm run dev
@@ -231,60 +160,59 @@ Open:
 http://localhost:3000
 ```
 
-Owner login:
+## Database Setup
+
+Run:
 
 ```text
-http://localhost:3000/login
+supabase/schema.sql
 ```
 
-## Production Build
+in the Supabase SQL Editor.
 
-Before deploying or pushing a stable milestone:
+Create the owner account in Supabase Authentication and assign the `owner` role in the `profiles` table.
+
+Example:
+
+```sql
+insert into public.profiles (id, role)
+values ('YOUR-AUTH-USER-UUID', 'owner')
+on conflict (id) do update
+set role = 'owner';
+```
+
+## Build
+
+Create a production build with:
 
 ```bash
 npm run build
 ```
 
-The current project has been tested with a successful Next.js production build.
+## Security
 
-## Deployment
+The project uses:
 
-The project is designed for Vercel.
+- Supabase Authentication
+- Row Level Security
+- owner-only administrative permissions
+- environment-based configuration
+- restricted database write access
+- controlled product image uploads
 
-1. Push the repository to GitHub.
-2. Import the repository into Vercel.
-3. Add the required environment variables in Vercel.
-4. Deploy.
+Project dependencies are regularly checked for known vulnerabilities using `npm audit`.
 
-Do not upload `.env.local` to GitHub or Vercel as a project file.
+## Project Status
 
-## Current Status
+The core storefront and administration features are implemented, and the project passes a production build successfully.
 
-Implemented:
+## Future Improvements
 
-- public storefront
-- editorial home page
-- searchable/filterable catalogue
-- reusable product detail modal
-- product variants
-- product recommendations
-- scheduled promotions
-- review submission and moderation
-- editable policies and website settings
-- owner authentication
-- owner-only database writes through RLS
-- product image uploads
-- separate admin routes
-- responsive layouts
-- production build validation
+Possible future enhancements include:
 
-## Possible Future Improvements
-
-These are optional and are not required for the current version:
-
-- brand and category management directly from the admin dashboard
-- automated tests
-- dedicated reusable modules for shared promotion logic
-- Next.js Image optimization
-- more granular loading/error states
-- accessibility and performance audits
+- admin management for brands and categories
+- automated testing
+- improved accessibility
+- more detailed loading and error states
+- performance optimization
+- image optimization improvements
