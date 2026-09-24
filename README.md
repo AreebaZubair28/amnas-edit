@@ -1,8 +1,31 @@
 # Amna's Edit
 
-Amna's Edit is a full-stack fashion catalogue built with Next.js and Supabase. It combines an editorial-style storefront with a secure owner dashboard for managing products, variants, promotions, reviews, policies, and website content.
+A full-stack, inquiry-based fashion catalogue built with **Next.js, React, TypeScript, Supabase, and PostgreSQL**.
 
-The platform follows an inquiry-based model rather than a traditional e-commerce checkout flow, allowing customers to browse products and contact the business directly through WhatsApp or Instagram.
+The platform provides a responsive product catalogue with search and filtering,
+product variants, recommendations, scheduled promotions, customer reviews, and
+an owner-only administration system.
+
+> This project intentionally uses an inquiry-based model rather than traditional
+> cart and checkout functionality. Customers browse products and contact the
+> business through WhatsApp or Instagram.
+
+## Live Demo
+
+🌐 **[View Live Website](https://amnas-edit.vercel.app/)**
+
+## Preview
+
+### Home Page
+![Amna's Edit Home Page](docs/home.png)
+
+### Product Catalogue
+![Product Catalogue](docs/catalogue.png)
+
+### Owner Dashboard
+![Owner Dashboard](docs/dashboard1.png)
+![](docs/dashboard2.png)
+![](docs/dashboard3.png)
 
 ## Features
 
