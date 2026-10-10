@@ -8,7 +8,7 @@ import type {
 export const metadata: Metadata = {
   title: "Collection",
   description:
-    "Browse the Amna's Edit collection of curated bags, shoes, accessories, in-stock items, coming-in pieces, and preorder finds.",
+    "Browse the Amna's Edit collection of curated bags, shoes, accessories, in-stock pieces, and sold-out favourites.",
   alternates: {
     canonical: "/collection",
   },

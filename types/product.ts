@@ -1,7 +1,6 @@
 export type ProductStatus =
   | "in_stock"
-  | "coming_soon"
-  | "preorder";
+  | "sold_out";
 
 export type Gender =
   | "female"
@@ -60,8 +59,7 @@ export const STATUS_LABELS: Record<
   string
 > = {
   in_stock: "In Stock",
-  coming_soon: "Coming In",
-  preorder: "Preorder / Sourced",
+  sold_out: "Sold Out",
 };
 
 export const STATUS_CLASS: Record<
@@ -69,6 +67,5 @@ export const STATUS_CLASS: Record<
   string
 > = {
   in_stock: "badge-stock",
-  coming_soon: "badge-coming",
-  preorder: "badge-preorder",
+  sold_out: "badge-sold-out",
 };

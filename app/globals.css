@@ -379,14 +379,9 @@ button {
   color: #47704d;
 }
 
-.badge-coming {
-  background: #fff1d8;
-  color: #956c28;
-}
-
-.badge-preorder {
-  background: #f8e3ea;
-  color: #99536b;
+.badge-sold-out {
+  background: #f1eeee;
+  color: #6f6262;
 }
 
 /* =========================================================

@@ -13,7 +13,6 @@ type PolicySection = {
   key:
     | "delivery_policy"
     | "return_policy"
-    | "preorder_policy"
     | "in_stock_policy"
     | "customs_hold_delay_policy"
     | "privacy_policy"
@@ -29,10 +28,6 @@ const policySections: PolicySection[] = [
   {
     key: "return_policy",
     title: "Return & Exchange Policy",
-  },
-  {
-    key: "preorder_policy",
-    title: "Preorder Policy",
   },
   {
     key: "in_stock_policy",
@@ -108,7 +103,7 @@ export default function PoliciesPage() {
           <span>Edit</span>
         </a>
 
-        <nav>
+        <nav aria-label="Primary navigation">
           <a href="/">
             Home
           </a>

@@ -64,7 +64,7 @@ create table if not exists public.products (
   brand_id uuid references public.brands(id) on delete set null,
   category_id uuid references public.categories(id) on delete set null,
   status text not null default 'in_stock'
-    check (status in ('in_stock', 'coming_soon', 'preorder')),
+    check (status in ('in_stock', 'sold_out')),
   gender text not null default 'unisex'
     check (gender in ('female', 'male', 'unisex')),
   price numeric(12,2),
@@ -290,7 +290,6 @@ values
   ('about_text', ''),
   ('delivery_policy', ''),
   ('return_policy', ''),
-  ('preorder_policy', ''),
   ('in_stock_policy', ''),
   ('customs_hold_delay_policy', ''),
   ('privacy_policy', ''),

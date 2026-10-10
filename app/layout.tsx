@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     template: "%s | Amna's Edit",
   },
   description:
-    "Discover curated fashion, bags, shoes, accessories, new arrivals, preorder pieces, and in-stock finds from Amna's Edit.",
+    "Discover curated fashion, bags, shoes, accessories, new arrivals, in-stock pieces, and sold-out favourites from Amna's Edit.",
   applicationName: "Amna's Edit",
   keywords: [
     "Amna's Edit",
@@ -21,7 +21,6 @@ export const metadata: Metadata = {
     "bags",
     "shoes",
     "accessories",
-    "preorder fashion",
     "in stock fashion",
   ],
   alternates: {
@@ -34,7 +33,7 @@ export const metadata: Metadata = {
     title:
       "Amna's Edit | Curated Fashion & Accessories",
     description:
-      "Browse curated fashion, new arrivals, preorder pieces, and in-stock finds from Amna's Edit.",
+      "Browse curated fashion, new arrivals, in-stock pieces, and sold-out favourites from Amna's Edit.",
     images: [
       {
         url: "/opengraph-image",
@@ -49,7 +48,7 @@ export const metadata: Metadata = {
     title:
       "Amna's Edit | Curated Fashion & Accessories",
     description:
-      "Browse curated fashion, new arrivals, preorder pieces, and in-stock finds from Amna's Edit.",
+      "Browse curated fashion, new arrivals, in-stock pieces, and sold-out favourites from Amna's Edit.",
     images: ["/opengraph-image"],
   },
   robots: {

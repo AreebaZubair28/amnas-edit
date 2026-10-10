@@ -925,7 +925,7 @@ export default function HomePage() {
                             Sourced with intention
                         </h3>
                         <p>
-                            Some pieces are ready to explore from our current edit, while others are sourced specifically through preorder. We keep the process personal, so you can ask about availability, colors, and the pieces you have in mind.
+                            Our catalogue reflects current availability, with each piece clearly marked as In Stock or Sold Out. We keep the process personal, so you can ask about availability, colors, and the pieces you have in mind.
                         </p>
                     </article>
 
@@ -965,7 +965,7 @@ export default function HomePage() {
                             <span>02</span>
                             <h4>Ask</h4>
                             <p>
-                                Message us directly about availability, colors, preorders, or sourcing.
+                                Message us directly about availability, colors, or product details.
                             </p>
                         </div>
 
@@ -1110,7 +1110,7 @@ export default function HomePage() {
                         Browse the collection and
                         reach out directly for
                         availability, colors,
-                        preorders, and sourcing.
+                        and product details.
                     </p>
 
                     <div className="home-contact-actions">

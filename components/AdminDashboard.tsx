@@ -127,7 +127,6 @@ type SiteSettings = {
   about_text: string;
   delivery_policy: string;
   return_policy: string;
-  preorder_policy: string;
   in_stock_policy: string;
   customs_hold_delay_policy: string;
   privacy_policy: string;
@@ -161,7 +160,6 @@ const blankSiteSettings: SiteSettings = {
   about_text: "",
   delivery_policy: "",
   return_policy: "",
-  preorder_policy: "",
   in_stock_policy: "",
   customs_hold_delay_policy: "",
   privacy_policy: "",
@@ -2074,16 +2072,9 @@ export default function AdminDashboard({
 
         if (
           rule.status_value ===
-          "coming_soon"
+          "sold_out"
         ) {
-          return "Coming In";
-        }
-
-        if (
-          rule.status_value ===
-          "preorder"
-        ) {
-          return "Preorder / Sourced";
+          return "Sold Out";
         }
 
         return "Status";
@@ -3386,31 +3377,13 @@ export default function AdminDashboard({
                 products.filter(
                   (p) =>
                     p.status ===
-                    "coming_soon"
+                    "sold_out"
                 ).length
               }
             </strong>
 
             <span>
-              Coming in
-            </span>
-          </div>
-
-          <div>
-            <Package />
-
-            <strong>
-              {
-                products.filter(
-                  (p) =>
-                    p.status ===
-                    "preorder"
-                ).length
-              }
-            </strong>
-
-            <span>
-              Preorders
+              Sold out
             </span>
           </div>
         </div>
@@ -4667,22 +4640,6 @@ export default function AdminDashboard({
               </label>
 
               <label>
-                Preorder Policy
-
-                <textarea
-                  rows={5}
-                  value={siteSettings.preorder_policy}
-                  onChange={(e) =>
-                    updateSiteSetting(
-                      "preorder_policy",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Add your preorder policy..."
-                />
-              </label>
-
-              <label>
                 In-Stock Policy
 
                 <textarea
@@ -4853,12 +4810,8 @@ export default function AdminDashboard({
                 In Stock
               </option>
 
-              <option value="coming_soon">
-                Coming In
-              </option>
-
-              <option value="preorder">
-                Preorder / Sourced
+              <option value="sold_out">
+                Sold Out
               </option>
             </select>
           </div>
@@ -5329,12 +5282,8 @@ export default function AdminDashboard({
                       In Stock
                     </option>
 
-                    <option value="coming_soon">
-                      Coming In
-                    </option>
-
-                    <option value="preorder">
-                      Preorder / Sourced
+                    <option value="sold_out">
+                      Sold Out
                     </option>
                   </select>
                 </label>
@@ -6502,12 +6451,8 @@ export default function AdminDashboard({
                                   In Stock
                                 </option>
 
-                                <option value="coming_soon">
-                                  Coming In
-                                </option>
-
-                                <option value="preorder">
-                                  Preorder / Sourced
+                                <option value="sold_out">
+                                  Sold Out
                                 </option>
                               </select>
                             </label>

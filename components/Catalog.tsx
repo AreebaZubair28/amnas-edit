@@ -1415,12 +1415,8 @@ export default function Catalog() {
                 In Stock
               </option>
 
-              <option value="coming_soon">
-                Coming In
-              </option>
-
-              <option value="preorder">
-                Preorder / Sourced
+              <option value="sold_out">
+                Sold Out
               </option>
             </select>
           </div>
