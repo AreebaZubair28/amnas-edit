@@ -677,9 +677,21 @@ function ProductCard({
   return (
     <article
       className="product-card"
+      role="button"
+      tabIndex={0}
+      aria-label={`View ${product.name}`}
       onClick={() =>
         onOpen(product)
       }
+      onKeyDown={(event) => {
+        if (
+          event.key === "Enter" ||
+          event.key === " "
+        ) {
+          event.preventDefault();
+          onOpen(product);
+        }
+      }}
     >
       <div className="product-image-wrap">
         {product.image_url ? (
@@ -689,6 +701,8 @@ function ProductCard({
             }
             alt={product.name}
             className="product-image"
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="image-placeholder">
@@ -874,6 +888,11 @@ export default function Catalog() {
     setLoading,
   ] = useState(true);
 
+  const [
+    loadError,
+    setLoadError,
+  ] = useState("");
+
   /*
    * A ticking clock, independent of data
    * loading. Re-running this on an interval
@@ -911,6 +930,8 @@ export default function Catalog() {
    */
   useEffect(() => {
     const load = async () => {
+      setLoadError("");
+
       const [
         productsResult,
         promotionsResult,
@@ -955,19 +976,23 @@ export default function Catalog() {
             ]),
         ]);
 
-      if (
-        !productsResult.error
-      ) {
+      if (productsResult.error) {
+        console.error("Failed to load products:", productsResult.error);
+        setProducts([]);
+        setLoadError(
+          "We couldn't load the collection right now. Please check your connection and try again."
+        );
+      } else {
         setProducts(
           (productsResult.data as Product[]) ||
           []
         );
       }
 
-      if (
-        !promotionsResult.error &&
-        promotionsResult.data
-      ) {
+      if (promotionsResult.error) {
+        console.error("Failed to load promotions:", promotionsResult.error);
+        setPromotions([]);
+      } else if (promotionsResult.data) {
         const rawPromotions =
           promotionsResult.data as Promotion[];
 
@@ -1013,13 +1038,18 @@ export default function Catalog() {
             setPromotions(
               loaded
             );
+          } else {
+            console.error("Failed to load promotion rules:", rulesError);
+            setPromotions([]);
           }
         } else {
           setPromotions([]);
         }
       }
 
-      if (!settingsResult.error && settingsResult.data) {
+      if (settingsResult.error) {
+        console.error("Failed to load contact settings:", settingsResult.error);
+      } else if (settingsResult.data) {
         const nextContacts: SiteContactSettings = {
           instagram_url: "",
           whatsapp_number: "",
@@ -1231,6 +1261,13 @@ export default function Catalog() {
 
   return (
     <main>
+      <a
+        className="skip-link"
+        href="#collection"
+      >
+        Skip to collection
+      </a>
+
       {/* =====================================================
           SALE BANNER
       ===================================================== */}
@@ -1298,7 +1335,7 @@ export default function Catalog() {
           <span>Edit</span>
         </a>
 
-        <nav>
+        <nav aria-label="Primary navigation">
           <a href="/">
             Home
           </a>
@@ -1307,13 +1344,13 @@ export default function Catalog() {
             Collection
           </a>
 
-          <a href="/#about">
+          <a href="/#about" className="desktop-secondary">
             About
           </a>
 
           <a
             href="/admin"
-            className="admin-link"
+            className="admin-link desktop-secondary"
           >
             Owner Login
           </a>
@@ -1335,7 +1372,10 @@ export default function Catalog() {
             </h2>
           </div>
 
-          <p className="count">
+          <p
+            className="count"
+            aria-live="polite"
+          >
             {filtered.length}{" "}
             pieces
           </p>
@@ -1353,6 +1393,8 @@ export default function Catalog() {
                 )
               }
               placeholder="Search pieces, brands..."
+              aria-label="Search products"
+              autoComplete="off"
             />
           </div>
 
@@ -1362,6 +1404,7 @@ export default function Catalog() {
             />
 
             <select
+              aria-label="Filter by product status"
               value={status}
               onChange={(e) =>
                 setStatus(
@@ -1389,6 +1432,7 @@ export default function Catalog() {
 
           <div className="select-wrap">
             <select
+              aria-label="Filter by category"
               value={
                 category
               }
@@ -1412,6 +1456,7 @@ export default function Catalog() {
 
           <div className="select-wrap">
             <select
+              aria-label="Filter by brand"
               value={brand}
               onChange={(e) =>
                 setBrand(
@@ -1433,6 +1478,7 @@ export default function Catalog() {
 
           <div className="select-wrap">
             <select
+              aria-label="Filter by gender"
               value={gender}
               onChange={(e) =>
                 setGender(
@@ -1460,6 +1506,7 @@ export default function Catalog() {
 
           <div className="select-wrap">
             <select
+              aria-label="Filter by price range"
               value={
                 priceRange
               }
@@ -1496,13 +1543,31 @@ export default function Catalog() {
           </div>
         </div>
 
-        {loading ? (
-          <div className="empty">
+        {loadError && !loading ? (
+          <div className="load-error-card" role="alert">
+            <p>{loadError}</p>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => window.location.reload()}
+            >
+              Try again
+            </button>
+          </div>
+        ) : loading ? (
+          <div
+            className="empty"
+            role="status"
+            aria-live="polite"
+          >
             Loading the edit...
           </div>
         ) : filtered.length ===
           0 ? (
-          <div className="empty">
+          <div
+            className="empty"
+            role="status"
+          >
             No pieces match
             these filters.
           </div>

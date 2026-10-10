@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -75,25 +76,38 @@ type ProductReview = {
   created_at: string;
 };
 
+type AnalyticsEventType =
+  | "product_view"
+  | "whatsapp_click"
+  | "instagram_click";
+
+function formatInquiryPrice(
+  price: number | null
+): string | null {
+  if (price === null) {
+    return null;
+  }
+
+  return `Rs. ${price.toLocaleString()}`;
+}
+
 function makeWhatsApp(
   product: Product,
   siteWhatsappNumber: string,
-  selectedVariant: ProductVariant | null
+  selectedVariant: ProductVariant | null,
+  originalPrice: number | null,
+  displayPrice: number | null,
+  promotion: PromotionWithRules | null
 ) {
   /*
-   * The Website Settings WhatsApp number is the
-   * global source of truth for customer inquiries.
-   * A product-specific WhatsApp URL is only used
-   * as a fallback when no global number is configured.
-   *
-   * When a color is selected, the message also includes
-   * that color and the image URL so the dealer can quickly
-   * identify the exact article being discussed.
+   * Website Settings remains the global source of truth
+   * for WhatsApp inquiries. The message includes enough
+   * product context for the owner to immediately identify
+   * what the customer is asking about.
    */
   const number =
     siteWhatsappNumber.trim() ||
-    process.env
-      .NEXT_PUBLIC_WHATSAPP_NUMBER ||
+    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ||
     "";
 
   const imageUrl =
@@ -101,31 +115,64 @@ function makeWhatsApp(
     product.image_url ||
     "";
 
-  const textLines = [
-    `Hi! I'm interested in ${product.name}${product.brand
-      ? ` by ${product.brand}`
-      : ""
-    }.`,
+  const pageUrl =
+    typeof window !== "undefined"
+      ? window.location.href
+      : "";
 
+  const originalPriceLabel =
+    formatInquiryPrice(originalPrice);
+
+  const displayPriceLabel =
+    formatInquiryPrice(displayPrice);
+
+  const hasDiscount =
+    promotion &&
+    originalPrice !== null &&
+    displayPrice !== null &&
+    displayPrice < originalPrice;
+
+  const textLines = [
+    "Hi Amna's Edit! I'm interested in this item:",
+    "",
+    `Product: ${product.name}`,
+    ...(product.brand
+      ? [`Brand: ${product.brand}`]
+      : []),
     ...(selectedVariant
       ? [`Color: ${selectedVariant.color_name}`]
       : []),
-
-    "Is it available?",
-
+    `Status: ${STATUS_LABELS[product.status]}`,
+    ...(displayPriceLabel
+      ? [
+          `Price: ${displayPriceLabel}${
+            hasDiscount && originalPriceLabel
+              ? ` (was ${originalPriceLabel})`
+              : ""
+          }`,
+        ]
+      : []),
+    ...(hasDiscount && promotion
+      ? [`Promotion: ${promotion.name}`]
+      : []),
+    ...(pageUrl
+      ? [`Page: ${pageUrl}`]
+      : []),
     ...(imageUrl
       ? [`Product image: ${imageUrl}`]
       : []),
+    "",
+    "Could you please confirm availability and ordering details?",
   ];
 
-  const text = textLines.join("\n");
+  const inquiryText = textLines.join("\n");
 
   if (number) {
     return `https://wa.me/${number.replace(
       /\D/g,
       ""
     )}?text=${encodeURIComponent(
-      text
+      inquiryText
     )}`;
   }
 
@@ -269,6 +316,36 @@ function getRecommendedProducts(
     .map(({ product }) => product);
 }
 
+async function recordAnalyticsEvent(
+  productId: string,
+  eventType: AnalyticsEventType
+) {
+  try {
+    const { error } = await supabase()
+      .from("analytics_events")
+      .insert({
+        product_id: productId,
+        event_type: eventType,
+      });
+
+    if (error) {
+      console.error(
+        "Analytics event could not be recorded:",
+        error
+      );
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error(
+      "Unexpected analytics error:",
+      error
+    );
+    return false;
+  }
+}
+
 export default function ProductModal({
   product,
   promotion,
@@ -305,6 +382,11 @@ export default function ProductModal({
   ] = useState(true);
 
   const [
+    variantLoadError,
+    setVariantLoadError,
+  ] = useState("");
+
+  const [
     reviews,
     setReviews,
   ] = useState<ProductReview[]>([]);
@@ -339,13 +421,111 @@ export default function ProductModal({
     setReviewError,
   ] = useState("");
 
+  const [
+    reviewsLoadError,
+    setReviewsLoadError,
+  ] = useState("");
+
+  const modalRef =
+    useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const previousActiveElement =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+
+    const previousOverflow =
+      document.body.style.overflow;
+
+    document.body.style.overflow =
+      "hidden";
+
+    const focusModal =
+      window.requestAnimationFrame(() => {
+        modalRef.current?.focus();
+      });
+
+    function handleKeyDown(
+      event: KeyboardEvent
+    ) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+        return;
+      }
+
+      if (
+        event.key !== "Tab" ||
+        !modalRef.current
+      ) {
+        return;
+      }
+
+      const focusable =
+        Array.from(
+          modalRef.current.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter(
+          (element) =>
+            element.getAttribute(
+              "aria-hidden"
+            ) !== "true"
+        );
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        modalRef.current.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last =
+        focusable[
+          focusable.length - 1
+        ];
+
+      if (
+        event.shiftKey &&
+        document.activeElement === first
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (
+        !event.shiftKey &&
+        document.activeElement === last
+      ) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener(
+      "keydown",
+      handleKeyDown
+    );
+
+    return () => {
+      window.cancelAnimationFrame(
+        focusModal
+      );
+      document.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
+      document.body.style.overflow =
+        previousOverflow;
+      previousActiveElement?.focus();
+    };
+  }, [product.id]);
+
   useEffect(() => {
     let active = true;
 
     async function loadVariants() {
-      setLoadingVariants(
-        true
-      );
+      setLoadingVariants(true);
+      setVariantLoadError("");
 
       const {
         data,
@@ -368,14 +548,18 @@ export default function ProductModal({
         return;
       }
 
-      if (!error) {
+      if (error) {
+        console.error("Failed to load product variants:", error);
+        setVariants([]);
+        setVariantLoadError(
+          "Color options couldn't be loaded right now."
+        );
+      } else {
         const loaded =
           (data as ProductVariant[]) ||
           [];
 
-        setVariants(
-          loaded
-        );
+        setVariants(loaded);
 
         /*
          * Keep the main product selected when the modal opens.
@@ -385,9 +569,7 @@ export default function ProductModal({
         setSelectedVariant(null);
       }
 
-      setLoadingVariants(
-        false
-      );
+      setLoadingVariants(false);
     }
 
     loadVariants();
@@ -401,6 +583,8 @@ export default function ProductModal({
     let active = true;
 
     async function loadReviews() {
+      setReviewsLoadError("");
+
       const {
         data,
         error,
@@ -419,7 +603,13 @@ export default function ProductModal({
         return;
       }
 
-      if (!error) {
+      if (error) {
+        console.error("Failed to load product reviews:", error);
+        setReviews([]);
+        setReviewsLoadError(
+          "Reviews couldn't be loaded right now."
+        );
+      } else {
         setReviews(
           (data as ProductReview[]) || []
         );
@@ -431,6 +621,68 @@ export default function ProductModal({
     return () => {
       active = false;
     };
+  }, [product.id]);
+
+  useEffect(() => {
+    /*
+     * Count one product view per browser session.
+     *
+     * In development, React can run effects more than
+     * once to detect unsafe side effects. The marker is
+     * written BEFORE the request starts so two effect
+     * executions cannot both record the same view.
+     *
+     * sessionStorage is used only for analytics
+     * deduplication. It is not used for authentication
+     * or authorization.
+     */
+    if (
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    const storageKey =
+      `amnas-edit-view:${product.id}`;
+
+    if (
+      sessionStorage.getItem(
+        storageKey
+      )
+    ) {
+      return;
+    }
+
+    sessionStorage.setItem(
+      storageKey,
+      "pending"
+    );
+
+    async function trackView() {
+      const recorded =
+        await recordAnalyticsEvent(
+          product.id,
+          "product_view"
+        );
+
+      if (recorded) {
+        sessionStorage.setItem(
+          storageKey,
+          "1"
+        );
+      } else {
+        /*
+         * If the analytics request fails, remove the
+         * temporary marker so a later product opening
+         * can try again.
+         */
+        sessionStorage.removeItem(
+          storageKey
+        );
+      }
+    }
+
+    void trackView();
   }, [product.id]);
 
   async function submitReview(
@@ -458,29 +710,39 @@ export default function ProductModal({
 
     setReviewSubmitting(true);
 
-    const { error } = await supabase()
-      .from("product_reviews")
-      .insert({
-        product_id: product.id,
-        customer_name: reviewName.trim(),
-        rating: reviewRating,
-        review_text: reviewText.trim(),
-        is_approved: false,
-      });
+    try {
+      const { error } = await supabase()
+        .from("product_reviews")
+        .insert({
+          product_id: product.id,
+          customer_name: reviewName.trim(),
+          rating: reviewRating,
+          review_text: reviewText.trim(),
+          is_approved: false,
+        });
 
-    if (error) {
-      setReviewError(error.message);
+      if (error) {
+        console.error("Failed to submit review:", error);
+        setReviewError(
+          "Your review couldn't be submitted right now. Please try again."
+        );
+        return;
+      }
+
+      setReviewName("");
+      setReviewRating(5);
+      setReviewText("");
+      setReviewMessage(
+        "Thank you! Your review has been submitted and will appear after approval."
+      );
+    } catch (error) {
+      console.error("Unexpected review submission error:", error);
+      setReviewError(
+        "Your review couldn't be submitted right now. Please try again."
+      );
+    } finally {
       setReviewSubmitting(false);
-      return;
     }
-
-    setReviewName("");
-    setReviewRating(5);
-    setReviewText("");
-    setReviewMessage(
-      "Thank you! Your review has been submitted and will appear after approval."
-    );
-    setReviewSubmitting(false);
   }
 
   const reviewAverage =
@@ -518,7 +780,10 @@ export default function ProductModal({
     makeWhatsApp(
       product,
       siteContacts.whatsapp_number,
-      selectedVariant
+      selectedVariant,
+      originalPrice,
+      displayPrice,
+      promotion
     );
 
   /*
@@ -550,7 +815,12 @@ export default function ProductModal({
       onClick={close}
     >
       <div
+        ref={modalRef}
         className="product-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`product-modal-title-${product.id}`}
+        tabIndex={-1}
         onClick={(e) =>
           e.stopPropagation()
         }
@@ -559,6 +829,7 @@ export default function ProductModal({
           className="icon-btn modal-close"
           onClick={close}
           type="button"
+          aria-label="Close product details"
         >
           <X size={20} />
         </button>
@@ -575,6 +846,8 @@ export default function ProductModal({
                     ? `${product.name} - ${selectedVariant.color_name}`
                     : product.name
                 }
+                loading="eager"
+                decoding="async"
               />
             </div>
           ) : (
@@ -634,7 +907,9 @@ export default function ProductModal({
             {product.brand}
           </div>
 
-          <h2>
+          <h2
+            id={`product-modal-title-${product.id}`}
+          >
             {product.name}
           </h2>
 
@@ -702,6 +977,12 @@ export default function ProductModal({
               "A carefully selected piece from Amna's Edit."}
           </p>
 
+          {variantLoadError && (
+            <div className="error" role="alert">
+              {variantLoadError}
+            </div>
+          )}
+
           {!loadingVariants &&
             variants.length >
             0 && (
@@ -746,6 +1027,11 @@ export default function ProductModal({
                         title={
                           variant.color_name
                         }
+                        aria-label={`Select ${variant.color_name}`}
+                        aria-pressed={
+                          selectedVariant?.id ===
+                          variant.id
+                        }
                       >
                         {variant.image_url ? (
                           <img
@@ -755,6 +1041,8 @@ export default function ProductModal({
                             alt={
                               variant.color_name
                             }
+                            loading="lazy"
+                            decoding="async"
                           />
                         ) : (
                           <span>
@@ -806,6 +1094,46 @@ export default function ProductModal({
             </span>
           </div>
 
+          <div className="modal-actions">
+            <a
+              href={wa}
+              target="_blank"
+              rel="noreferrer"
+              className="button primary"
+              onClick={() => {
+                void recordAnalyticsEvent(
+                  product.id,
+                  "whatsapp_click"
+                );
+              }}
+            >
+              <MessageCircle
+                size={17}
+              />
+
+              Inquire on WhatsApp
+            </a>
+
+            <a
+              href={ig}
+              target="_blank"
+              rel="noreferrer"
+              className="button secondary"
+              onClick={() => {
+                void recordAnalyticsEvent(
+                  product.id,
+                  "instagram_click"
+                );
+              }}
+            >
+              <Instagram
+                size={17}
+              />
+
+              DM on Instagram
+            </a>
+          </div>
+
           <div
             className="modal-info-block"
             style={{ marginTop: 22 }}
@@ -814,7 +1142,11 @@ export default function ProductModal({
               Customer Reviews
             </h4>
 
-            {reviews.length > 0 ? (
+            {reviewsLoadError ? (
+              <div className="error" role="alert">
+                {reviewsLoadError}
+              </div>
+            ) : reviews.length > 0 ? (
               <>
                 <div
                   style={{
@@ -1003,13 +1335,18 @@ export default function ProductModal({
               </label>
 
               {reviewError && (
-                <div className="error">
+                <div
+                  className="error"
+                  role="alert"
+                >
                   {reviewError}
                 </div>
               )}
 
               {reviewMessage && (
                 <div
+                  role="status"
+                  aria-live="polite"
                   style={{
                     background: "#edf7ef",
                     color: "#47704d",
@@ -1033,34 +1370,6 @@ export default function ProductModal({
                   : "Submit Review"}
               </button>
             </form>
-          </div>
-
-          <div className="modal-actions">
-            <a
-              href={wa}
-              target="_blank"
-              rel="noreferrer"
-              className="button primary"
-            >
-              <MessageCircle
-                size={17}
-              />
-
-              Inquire on WhatsApp
-            </a>
-
-            <a
-              href={ig}
-              target="_blank"
-              rel="noreferrer"
-              className="button secondary"
-            >
-              <Instagram
-                size={17}
-              />
-
-              DM on Instagram
-            </a>
           </div>
 
           {recommendedProducts.length > 0 && (
@@ -1128,6 +1437,8 @@ export default function ProductModal({
                         <img
                           src={recommendedProduct.image_url}
                           alt={recommendedProduct.name}
+                          loading="lazy"
+                          decoding="async"
                           style={{
                             width: "100%",
                             height: "100%",

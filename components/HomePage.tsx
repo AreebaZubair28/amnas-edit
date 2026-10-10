@@ -179,6 +179,7 @@ function ProductPreview({
         <button
             type="button"
             className="home-product-card"
+            aria-label={`View ${product.name}`}
             onClick={() => onOpen(product)}
             style={{
                 border: 0,
@@ -195,6 +196,8 @@ function ProductPreview({
                     <img
                         src={product.image_url}
                         alt={product.name}
+                        loading="lazy"
+                        decoding="async"
                     />
                 ) : (
                     <div className="image-placeholder">
@@ -428,6 +431,9 @@ export default function HomePage() {
     const [loading, setLoading] =
         useState(true);
 
+    const [loadError, setLoadError] =
+        useState("");
+
     const [now, setNow] =
         useState(Date.now());
 
@@ -444,6 +450,8 @@ export default function HomePage() {
 
     useEffect(() => {
         async function loadHomeData() {
+            setLoadError("");
+
             const [
                 productsResult,
                 reviewsResult,
@@ -491,24 +499,32 @@ export default function HomePage() {
                     }),
             ]);
 
-            if (!productsResult.error) {
+            if (productsResult.error) {
+                console.error("Failed to load homepage products:", productsResult.error);
+                setProducts([]);
+                setLoadError(
+                    "We couldn't load the storefront right now. Please check your connection and try again."
+                );
+            } else {
                 setProducts(
                     (productsResult.data as Product[]) ||
                     []
                 );
             }
 
-            if (!reviewsResult.error) {
+            if (reviewsResult.error) {
+                console.error("Failed to load reviews:", reviewsResult.error);
+                setReviews([]);
+            } else {
                 setReviews(
                     (reviewsResult.data as Review[]) ||
                     []
                 );
             }
 
-            if (
-                !settingsResult.error &&
-                settingsResult.data
-            ) {
+            if (settingsResult.error) {
+                console.error("Failed to load site settings:", settingsResult.error);
+            } else if (settingsResult.data) {
                 const nextSettings: SiteSettings = {
                     about_title: "",
                     about_text: "",
@@ -535,7 +551,10 @@ export default function HomePage() {
                 setSiteSettings(nextSettings);
             }
 
-            if (!promotionsResult.error && promotionsResult.data) {
+            if (promotionsResult.error) {
+                console.error("Failed to load promotions:", promotionsResult.error);
+                setPromotions([]);
+            } else if (promotionsResult.data) {
                 const rawPromotions =
                     promotionsResult.data as Promotion[];
 
@@ -570,6 +589,7 @@ export default function HomePage() {
                             )
                         );
                     } else {
+                        console.error("Failed to load promotion rules:", rulesError);
                         setPromotions([]);
                     }
                 } else {
@@ -641,8 +661,29 @@ export default function HomePage() {
     if (loading) {
         return (
             <main className="home-page">
-                <div className="empty">
+                <div
+                    className="empty"
+                    role="status"
+                    aria-live="polite"
+                >
                     Loading Amna&apos;s Edit...
+                </div>
+            </main>
+        );
+    }
+
+    if (loadError) {
+        return (
+            <main className="home-page">
+                <div className="load-error-card" role="alert">
+                    <p>{loadError}</p>
+                    <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => window.location.reload()}
+                    >
+                        Try again
+                    </button>
                 </div>
             </main>
         );
@@ -650,6 +691,12 @@ export default function HomePage() {
 
     return (
         <main className="home-page">
+            <a
+                className="skip-link"
+                href="#main-content"
+            >
+                Skip to main content
+            </a>
 
             {/* =====================================================
           ANNOUNCEMENT
@@ -689,7 +736,7 @@ export default function HomePage() {
                     <span>Edit</span>
                 </a>
 
-                <nav>
+                <nav aria-label="Primary navigation">
                     <a href="/">
                         Home
                     </a>
@@ -698,13 +745,13 @@ export default function HomePage() {
                         Collection
                     </a>
 
-                    <a href="#about">
+                    <a href="#about" className="desktop-secondary">
                         About
                     </a>
 
                     <a
                         href="/admin"
-                        className="admin-link"
+                        className="admin-link desktop-secondary"
                     >
                         Owner Login
                     </a>
@@ -715,7 +762,10 @@ export default function HomePage() {
           HERO
       ===================================================== */}
 
-            <section className="home-hero">
+            <section
+                className="home-hero"
+                id="main-content"
+            >
                 <div className="home-hero-copy">
                     <p className="kicker">
                         THE CURATED EDIT
@@ -757,6 +807,9 @@ export default function HomePage() {
                         <img
                             src={heroProduct.image_url}
                             alt={heroProduct.name}
+                            loading="eager"
+                            decoding="async"
+                            fetchPriority="high"
                         />
                     ) : (
                         <div className="home-hero-placeholder">

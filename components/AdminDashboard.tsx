@@ -15,6 +15,9 @@ import {
   Tag,
   CalendarDays,
   Percent,
+  MessageCircle,
+  Instagram,
+  BarChart3,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -141,6 +144,15 @@ type ProductReview = {
   rating: number;
   review_text: string;
   is_approved: boolean;
+  created_at: string;
+};
+
+type AnalyticsEvent = {
+  product_id: string;
+  event_type:
+    | "product_view"
+    | "whatsapp_click"
+    | "instagram_click";
   created_at: string;
 };
 
@@ -339,6 +351,21 @@ export default function AdminDashboard({
   ] = useState<Category[]>([]);
 
   const [
+    newBrandName,
+    setNewBrandName,
+  ] = useState("");
+
+  const [
+    newCategoryName,
+    setNewCategoryName,
+  ] = useState("");
+
+  const [
+    taxonomySaving,
+    setTaxonomySaving,
+  ] = useState(false);
+
+  const [
     variants,
     setVariants,
   ] = useState<ProductVariant[]>([]);
@@ -483,6 +510,95 @@ export default function AdminDashboard({
     setReviewsLoading,
   ] = useState(true);
 
+  const [
+    analyticsEvents,
+    setAnalyticsEvents,
+  ] = useState<AnalyticsEvent[]>([]);
+
+  const [
+    analyticsLoading,
+    setAnalyticsLoading,
+  ] = useState(false);
+
+  const [
+    analyticsError,
+    setAnalyticsError,
+  ] = useState("");
+
+  const [
+    successMessage,
+    setSuccessMessage,
+  ] = useState("");
+
+  const [
+    productSaving,
+    setProductSaving,
+  ] = useState(false);
+
+  const [
+    variantSaving,
+    setVariantSaving,
+  ] = useState(false);
+
+  const [
+    promotionSaving,
+    setPromotionSaving,
+  ] = useState(false);
+
+  const [
+    reviewActionId,
+    setReviewActionId,
+  ] = useState<string | null>(
+    null
+  );
+
+  const [
+    settingsDirty,
+    setSettingsDirty,
+  ] = useState(false);
+
+  const hasUnsavedWork =
+    !!editor ||
+    !!variantEditor ||
+    !!promotionEditor ||
+    settingsDirty;
+
+  useEffect(() => {
+    if (!hasUnsavedWork) {
+      return;
+    }
+
+    const handleBeforeUnload = (
+      event: BeforeUnloadEvent
+    ) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener(
+      "beforeunload",
+      handleBeforeUnload
+    );
+
+    return () => {
+      window.removeEventListener(
+        "beforeunload",
+        handleBeforeUnload
+      );
+    };
+  }, [hasUnsavedWork]);
+
+  function beginAdminAction() {
+    setError("");
+    setSuccessMessage("");
+  }
+
+  function confirmDiscardChanges() {
+    return confirm(
+      "Discard the changes you have not saved?"
+    );
+  }
+
 
   /* =======================================================
      LOAD EVERYTHING
@@ -491,43 +607,32 @@ export default function AdminDashboard({
   const load = async () => {
     setError("");
 
-    /*
-     * Supabase intentionally persists its auth session
-     * in the browser. We use sessionStorage as an
-     * additional owner-access marker so that:
-     *
-     * - Refreshing /admin keeps the owner logged in.
-     * - Closing the browser tab/window clears the marker.
-     * - Reopening /admin therefore requires login again.
-     */
-    const ownerSession =
-      sessionStorage.getItem(
-        "amnas-edit-owner-session"
-      );
-
-    if (
-      ownerSession !==
-      "authenticated"
-    ) {
-      await supabase().auth.signOut();
-      router.replace("/login");
-      return;
-    }
-
     const client = supabase();
 
     const {
       data: { user },
+      error: userError,
     } = await client.auth.getUser();
 
-    if (!user) {
-      sessionStorage.removeItem(
-        "amnas-edit-owner-session"
-      );
-
+    if (userError || !user) {
       router.replace("/login");
       return;
     }
+
+    const {
+      data: isOwner,
+      error: ownerError,
+    } = await client.rpc("is_owner");
+
+    if (
+      ownerError ||
+      isOwner !== true
+    ) {
+      await client.auth.signOut();
+      router.replace("/login");
+      return;
+    }
+
     setUserEmail(user.email || "");
 
     const [
@@ -765,6 +870,77 @@ export default function AdminDashboard({
     load();
   }, []);
 
+  useEffect(() => {
+    if (
+      section !== "overview" ||
+      loading
+    ) {
+      return;
+    }
+
+    let active = true;
+
+    async function loadAnalytics() {
+      setAnalyticsLoading(true);
+      setAnalyticsError("");
+
+      const thirtyDaysAgo =
+        new Date(
+          Date.now() -
+            30 *
+              24 *
+              60 *
+              60 *
+              1000
+        ).toISOString();
+
+      const {
+        data,
+        error: analyticsLoadError,
+      } = await supabase()
+        .from("analytics_events")
+        .select(
+          "product_id, event_type, created_at"
+        )
+        .gte(
+          "created_at",
+          thirtyDaysAgo
+        )
+        .order("created_at", {
+          ascending: false,
+        })
+        .limit(5000);
+
+      if (!active) {
+        return;
+      }
+
+      if (analyticsLoadError) {
+        console.error(
+          "Analytics could not be loaded:",
+          analyticsLoadError
+        );
+        setAnalyticsEvents([]);
+        setAnalyticsError(
+          "Business analytics couldn't be loaded right now."
+        );
+      } else {
+        setAnalyticsEvents(
+          (data as AnalyticsEvent[]) ||
+            []
+        );
+      }
+
+      setAnalyticsLoading(false);
+    }
+
+    void loadAnalytics();
+
+    return () => {
+      active = false;
+    };
+  }, [section, loading]);
+
   /* =======================================================
      VARIANTS
   ======================================================= */
@@ -804,11 +980,17 @@ export default function AdminDashboard({
   ======================================================= */
 
   async function logout() {
-    sessionStorage.removeItem(
-      "amnas-edit-owner-session"
-    );
+    if (
+      hasUnsavedWork &&
+      !confirm(
+        "You have unsaved changes. Sign out anyway?"
+      )
+    ) {
+      return;
+    }
+
     await supabase().auth.signOut();
-    router.push("/");
+    router.replace("/");
   }
 
   /* =======================================================
@@ -816,6 +998,8 @@ export default function AdminDashboard({
   ======================================================= */
 
   function openNewProduct() {
+    beginAdminAction();
+
     const defaultCategory =
       categories.find(
         (category) =>
@@ -841,6 +1025,7 @@ export default function AdminDashboard({
   async function openEditProduct(
     product: ProductWithRefs
   ) {
+    beginAdminAction();
     setPendingVariants([]);
 
     setEditor({
@@ -860,6 +1045,323 @@ export default function AdminDashboard({
     );
   }
 
+  const MAX_IMAGE_SIZE =
+    5 * 1024 * 1024;
+
+  const ALLOWED_IMAGE_TYPES = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ];
+
+  function validateImageFile(
+    file: File
+  ) {
+    if (
+      !ALLOWED_IMAGE_TYPES.includes(
+        file.type
+      )
+    ) {
+      return "Please upload a JPG, PNG, or WEBP image.";
+    }
+
+    if (
+      file.size >
+      MAX_IMAGE_SIZE
+    ) {
+      return "Image must be 5MB or smaller. For best performance, resize large phone photos before uploading.";
+    }
+
+    return "";
+  }
+
+  /* =======================================================
+     BRANDS + CATEGORIES
+  ======================================================= */
+
+  function slugifyTaxonomyName(
+    value: string
+  ) {
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/&/g, " and ")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  async function addBrand() {
+    beginAdminAction();
+
+    const name =
+      newBrandName.trim();
+
+    if (!name) {
+      setError(
+        "Enter a brand name."
+      );
+      return;
+    }
+
+    if (
+      brands.some(
+        (brand) =>
+          brand.name
+            .trim()
+            .toLowerCase() ===
+          name.toLowerCase()
+      )
+    ) {
+      setError(
+        "That brand already exists."
+      );
+      return;
+    }
+
+    const slug =
+      slugifyTaxonomyName(name);
+
+    if (!slug) {
+      setError(
+        "Please enter a valid brand name."
+      );
+      return;
+    }
+
+    setTaxonomySaving(true);
+
+    const {
+      data,
+      error: brandError,
+    } = await supabase()
+      .from("brands")
+      .insert({
+        name,
+        slug,
+      })
+      .select("id, name, slug")
+      .single();
+
+    setTaxonomySaving(false);
+
+    if (brandError) {
+      setError(
+        brandError.message
+      );
+      return;
+    }
+
+    setBrands((previous) =>
+      [...previous, data as Brand].sort(
+        (a, b) =>
+          a.name.localeCompare(
+            b.name
+          )
+      )
+    );
+
+    setNewBrandName("");
+    setSuccessMessage(
+      "Brand added successfully."
+    );
+  }
+
+  async function addCategory() {
+    beginAdminAction();
+
+    const name =
+      newCategoryName.trim();
+
+    if (!name) {
+      setError(
+        "Enter a category name."
+      );
+      return;
+    }
+
+    if (
+      categories.some(
+        (category) =>
+          category.name
+            .trim()
+            .toLowerCase() ===
+          name.toLowerCase()
+      )
+    ) {
+      setError(
+        "That category already exists."
+      );
+      return;
+    }
+
+    const slug =
+      slugifyTaxonomyName(name);
+
+    if (!slug) {
+      setError(
+        "Please enter a valid category name."
+      );
+      return;
+    }
+
+    setTaxonomySaving(true);
+
+    const {
+      data,
+      error: categoryError,
+    } = await supabase()
+      .from("categories")
+      .insert({
+        name,
+        slug,
+      })
+      .select("id, name, slug")
+      .single();
+
+    setTaxonomySaving(false);
+
+    if (categoryError) {
+      setError(
+        categoryError.message
+      );
+      return;
+    }
+
+    setCategories((previous) =>
+      [
+        ...previous,
+        data as Category,
+      ].sort((a, b) =>
+        a.name.localeCompare(
+          b.name
+        )
+      )
+    );
+
+    setNewCategoryName("");
+    setSuccessMessage(
+      "Category added successfully."
+    );
+  }
+
+  async function removeBrand(
+    brand: Brand
+  ) {
+    beginAdminAction();
+
+    const usageCount =
+      products.filter(
+        (product) =>
+          product.brand_id ===
+          brand.id
+      ).length;
+
+    if (usageCount > 0) {
+      setError(
+        `${brand.name} is used by ${usageCount} product${usageCount === 1 ? "" : "s"}. Reassign those products before deleting this brand.`
+      );
+      return;
+    }
+
+    if (
+      !confirm(
+        `Delete the brand "${brand.name}"?`
+      )
+    ) {
+      return;
+    }
+
+    setTaxonomySaving(true);
+
+    const {
+      error: brandError,
+    } = await supabase()
+      .from("brands")
+      .delete()
+      .eq("id", brand.id);
+
+    setTaxonomySaving(false);
+
+    if (brandError) {
+      setError(
+        brandError.message
+      );
+      return;
+    }
+
+    setBrands((previous) =>
+      previous.filter(
+        (item) =>
+          item.id !== brand.id
+      )
+    );
+
+    setSuccessMessage(
+      "Brand deleted successfully."
+    );
+  }
+
+  async function removeCategory(
+    category: Category
+  ) {
+    beginAdminAction();
+
+    const usageCount =
+      products.filter(
+        (product) =>
+          product.category_id ===
+          category.id
+      ).length;
+
+    if (usageCount > 0) {
+      setError(
+        `${category.name} is used by ${usageCount} product${usageCount === 1 ? "" : "s"}. Reassign those products before deleting this category.`
+      );
+      return;
+    }
+
+    if (
+      !confirm(
+        `Delete the category "${category.name}"?`
+      )
+    ) {
+      return;
+    }
+
+    setTaxonomySaving(true);
+
+    const {
+      error: categoryError,
+    } = await supabase()
+      .from("categories")
+      .delete()
+      .eq(
+        "id",
+        category.id
+      );
+
+    setTaxonomySaving(false);
+
+    if (categoryError) {
+      setError(
+        categoryError.message
+      );
+      return;
+    }
+
+    setCategories((previous) =>
+      previous.filter(
+        (item) =>
+          item.id !==
+          category.id
+      )
+    );
+
+    setSuccessMessage(
+      "Category deleted successfully."
+    );
+  }
+
   /* =======================================================
      PRODUCT IMAGE
   ======================================================= */
@@ -869,23 +1371,12 @@ export default function AdminDashboard({
   ) {
     setError("");
 
-    if (
-      !file.type.startsWith(
-        "image/"
-      )
-    ) {
-      setError(
-        "Please select an image file."
-      );
-      return;
-    }
+    const validationError =
+      validateImageFile(file);
 
-    if (
-      file.size >
-      8 * 1024 * 1024
-    ) {
+    if (validationError) {
       setError(
-        "Image must be 8MB or smaller."
+        validationError
       );
       return;
     }
@@ -913,7 +1404,9 @@ export default function AdminDashboard({
         file,
         {
           cacheControl:
-            "3600",
+            "31536000",
+          contentType:
+            file.type,
           upsert: false,
         }
       );
@@ -955,23 +1448,12 @@ export default function AdminDashboard({
   ) {
     setError("");
 
-    if (
-      !file.type.startsWith(
-        "image/"
-      )
-    ) {
-      setError(
-        "Please select an image file."
-      );
-      return;
-    }
+    const validationError =
+      validateImageFile(file);
 
-    if (
-      file.size >
-      8 * 1024 * 1024
-    ) {
+    if (validationError) {
       setError(
-        "Image must be 8MB or smaller."
+        validationError
       );
       return;
     }
@@ -1001,7 +1483,9 @@ export default function AdminDashboard({
         file,
         {
           cacheControl:
-            "3600",
+            "31536000",
+          contentType:
+            file.type,
           upsert: false,
         }
       );
@@ -1047,7 +1531,13 @@ export default function AdminDashboard({
   ) {
     e.preventDefault();
 
-    setError("");
+    beginAdminAction();
+
+    if (
+      productSaving
+    ) {
+      return;
+    }
 
     if (
       !editor?.name?.trim()
@@ -1070,6 +1560,17 @@ export default function AdminDashboard({
     ) {
       setError(
         "Please select a category."
+      );
+      return;
+    }
+
+    if (
+      editor.price !== null &&
+      editor.price !== undefined &&
+      editor.price < 0
+    ) {
+      setError(
+        "Product price cannot be negative."
       );
       return;
     }
@@ -1101,6 +1602,8 @@ export default function AdminDashboard({
       );
       return;
     }
+
+    setProductSaving(true);
 
     const client =
       supabase();
@@ -1179,10 +1682,15 @@ export default function AdminDashboard({
         setError(
           result.error.message
         );
+        setProductSaving(false);
         return;
       }
 
       setEditor(null);
+      setProductSaving(false);
+      setSuccessMessage(
+        "Product updated successfully."
+      );
       await load();
       return;
     }
@@ -1200,6 +1708,7 @@ export default function AdminDashboard({
       setError(
         result.error.message
       );
+      setProductSaving(false);
       return;
     }
 
@@ -1253,6 +1762,7 @@ export default function AdminDashboard({
           `Product was created, but colors could not be saved: ${variantResult.error.message}`
         );
 
+        setProductSaving(false);
         await load();
         return;
       }
@@ -1269,6 +1779,10 @@ export default function AdminDashboard({
     );
 
     setEditor(null);
+    setProductSaving(false);
+    setSuccessMessage(
+      "Product created successfully."
+    );
 
     await load();
   }
@@ -1278,13 +1792,29 @@ export default function AdminDashboard({
   ======================================================= */
 
   async function saveVariant() {
-    setError("");
+    beginAdminAction();
+
+    if (
+      variantSaving
+    ) {
+      return;
+    }
 
     if (
       !variantEditor?.color_name.trim()
     ) {
       setError(
         "Color name is required."
+      );
+      return;
+    }
+
+    if (
+      variantEditor.price !== null &&
+      variantEditor.price < 0
+    ) {
+      setError(
+        "Color price cannot be negative."
       );
       return;
     }
@@ -1332,8 +1862,36 @@ export default function AdminDashboard({
         null
       );
 
+      setSuccessMessage(
+        "Color added. It will be saved with the product."
+      );
+
       return;
     }
+
+    const duplicateExistingColor =
+      variants.some(
+        (variant) =>
+          variant.id !==
+            variantEditor.id &&
+          variant.color_name
+            .trim()
+            .toLowerCase() ===
+          variantEditor.color_name
+            .trim()
+            .toLowerCase()
+      );
+
+    if (
+      duplicateExistingColor
+    ) {
+      setError(
+        "This color has already been added."
+      );
+      return;
+    }
+
+    setVariantSaving(true);
 
     const client =
       supabase();
@@ -1387,11 +1945,18 @@ export default function AdminDashboard({
       setError(
         result.error.message
       );
+      setVariantSaving(false);
       return;
     }
 
     setVariantEditor(
       null
+    );
+    setVariantSaving(false);
+    setSuccessMessage(
+      variantEditor.id
+        ? "Color updated successfully."
+        : "Color added successfully."
     );
 
     await loadVariants(
@@ -1440,6 +2005,10 @@ export default function AdminDashboard({
       return;
     }
 
+    setSuccessMessage(
+      "Color deleted successfully."
+    );
+
     if (
       selectedProductId
     ) {
@@ -1475,6 +2044,9 @@ export default function AdminDashboard({
         error.message
       );
     } else {
+      setSuccessMessage(
+        "Product deleted successfully."
+      );
       await load();
     }
   }
@@ -1576,6 +2148,8 @@ export default function AdminDashboard({
   }
 
   function openNewPromotion() {
+    beginAdminAction();
+
     setPromotionEditor({
       ...blankPromotion,
       start_at: "",
@@ -1714,7 +2288,13 @@ export default function AdminDashboard({
   ) {
     event.preventDefault();
 
-    setError("");
+    beginAdminAction();
+
+    if (
+      promotionSaving
+    ) {
+      return;
+    }
 
     const {
       data: { user },
@@ -1747,11 +2327,11 @@ export default function AdminDashboard({
     }
 
     if (
-      promotionEditor.discount_value <
+      promotionEditor.discount_value <=
       0
     ) {
       setError(
-        "Discount value cannot be negative."
+        "Discount value must be greater than 0."
       );
       return;
     }
@@ -1868,6 +2448,8 @@ export default function AdminDashboard({
       }
     }
 
+    setPromotionSaving(true);
+
     const client =
       supabase();
 
@@ -1918,6 +2500,7 @@ export default function AdminDashboard({
         setError(
           updateError.message
         );
+        setPromotionSaving(false);
         return;
       }
 
@@ -1938,6 +2521,7 @@ export default function AdminDashboard({
         setError(
           deleteRulesError.message
         );
+        setPromotionSaving(false);
         return;
       }
     } else {
@@ -1957,6 +2541,7 @@ export default function AdminDashboard({
         setError(
           insertError.message
         );
+        setPromotionSaving(false);
         return;
       }
 
@@ -1968,6 +2553,7 @@ export default function AdminDashboard({
       setError(
         "Promotion could not be saved."
       );
+      setPromotionSaving(false);
       return;
     }
 
@@ -2029,6 +2615,7 @@ export default function AdminDashboard({
       setError(
         rulesInsertError.message
       );
+      setPromotionSaving(false);
       return;
     }
 
@@ -2038,6 +2625,11 @@ export default function AdminDashboard({
 
     setEditingPromotionRules(
       []
+    );
+
+    setPromotionSaving(false);
+    setSuccessMessage(
+      "Promotion saved successfully."
     );
 
     await load();
@@ -2071,6 +2663,9 @@ export default function AdminDashboard({
       return;
     }
 
+    setSuccessMessage(
+      "Promotion deleted successfully."
+    );
     await load();
   }
 
@@ -2082,6 +2677,8 @@ export default function AdminDashboard({
     key: keyof SiteSettings,
     value: string
   ) {
+    setSettingsDirty(true);
+
     setSiteSettings(
       (previous) => ({
         ...previous,
@@ -2091,7 +2688,14 @@ export default function AdminDashboard({
   }
 
   async function saveSiteSettings() {
-    setError("");
+    beginAdminAction();
+
+    if (
+      settingsSaving
+    ) {
+      return;
+    }
+
     setSettingsSaving(true);
 
     try {
@@ -2127,6 +2731,11 @@ export default function AdminDashboard({
         );
         return;
       }
+
+      setSettingsDirty(false);
+      setSuccessMessage(
+        "Website settings saved successfully."
+      );
     } finally {
       setSettingsSaving(false);
     }
@@ -2140,7 +2749,13 @@ export default function AdminDashboard({
     id: string,
     isApproved: boolean
   ) {
-    setError("");
+    beginAdminAction();
+
+    if (reviewActionId) {
+      return;
+    }
+
+    setReviewActionId(id);
 
     const {
       error: reviewError,
@@ -2153,6 +2768,7 @@ export default function AdminDashboard({
 
     if (reviewError) {
       setError(reviewError.message);
+      setReviewActionId(null);
       return;
     }
 
@@ -2165,6 +2781,13 @@ export default function AdminDashboard({
             }
           : review
       )
+    );
+
+    setReviewActionId(null);
+    setSuccessMessage(
+      isApproved
+        ? "Review approved successfully."
+        : "Review hidden successfully."
     );
   }
 
@@ -2179,7 +2802,13 @@ export default function AdminDashboard({
       return;
     }
 
-    setError("");
+    beginAdminAction();
+
+    if (reviewActionId) {
+      return;
+    }
+
+    setReviewActionId(id);
 
     const {
       error: reviewError,
@@ -2190,6 +2819,7 @@ export default function AdminDashboard({
 
     if (reviewError) {
       setError(reviewError.message);
+      setReviewActionId(null);
       return;
     }
 
@@ -2198,6 +2828,11 @@ export default function AdminDashboard({
         (review) =>
           review.id !== id
       )
+    );
+
+    setReviewActionId(null);
+    setSuccessMessage(
+      "Review deleted successfully."
     );
   }
 
@@ -2266,6 +2901,183 @@ export default function AdminDashboard({
       ).length,
     [reviews]
   );
+
+  const analyticsSummary =
+    useMemo(() => {
+      let views = 0;
+      let whatsappClicks = 0;
+      let instagramClicks = 0;
+
+      const byProduct = new Map<
+        string,
+        {
+          views: number;
+          whatsapp: number;
+          instagram: number;
+        }
+      >();
+
+      for (
+        const event of
+        analyticsEvents
+      ) {
+        const current =
+          byProduct.get(
+            event.product_id
+          ) || {
+            views: 0,
+            whatsapp: 0,
+            instagram: 0,
+          };
+
+        if (
+          event.event_type ===
+          "product_view"
+        ) {
+          views += 1;
+          current.views += 1;
+        } else if (
+          event.event_type ===
+          "whatsapp_click"
+        ) {
+          whatsappClicks += 1;
+          current.whatsapp += 1;
+        } else if (
+          event.event_type ===
+          "instagram_click"
+        ) {
+          instagramClicks += 1;
+          current.instagram += 1;
+        }
+
+        byProduct.set(
+          event.product_id,
+          current
+        );
+      }
+
+      const productRows =
+        products
+          .map((product) => {
+            const eventCounts =
+              byProduct.get(
+                product.id
+              ) || {
+                views: 0,
+                whatsapp: 0,
+                instagram: 0,
+              };
+
+            const inquiryClicks =
+              eventCounts.whatsapp +
+              eventCounts.instagram;
+
+            return {
+              id: product.id,
+              name: product.name,
+              brand:
+                product.brand ||
+                "Unbranded",
+              category:
+                product.category ||
+                "Uncategorized",
+              views:
+                eventCounts.views,
+              whatsapp:
+                eventCounts.whatsapp,
+              instagram:
+                eventCounts.instagram,
+              inquiryClicks,
+            };
+          })
+          .filter(
+            (item) =>
+              item.views > 0 ||
+              item.inquiryClicks > 0
+          )
+          .sort(
+            (a, b) =>
+              b.inquiryClicks -
+                a.inquiryClicks ||
+              b.views - a.views
+          );
+
+      function groupInterest(
+        field:
+          | "brand"
+          | "category"
+      ) {
+        const grouped =
+          new Map<
+            string,
+            {
+              name: string;
+              views: number;
+              inquiries: number;
+            }
+          >();
+
+        for (
+          const row of productRows
+        ) {
+          const name =
+            row[field];
+
+          const current =
+            grouped.get(name) || {
+              name,
+              views: 0,
+              inquiries: 0,
+            };
+
+          current.views +=
+            row.views;
+          current.inquiries +=
+            row.inquiryClicks;
+
+          grouped.set(
+            name,
+            current
+          );
+        }
+
+        return Array.from(
+          grouped.values()
+        )
+          .sort(
+            (a, b) =>
+              b.inquiries -
+                a.inquiries ||
+              b.views - a.views
+          )
+          .slice(0, 5);
+      }
+
+      return {
+        views,
+        whatsappClicks,
+        instagramClicks,
+        inquiryClicks:
+          whatsappClicks +
+          instagramClicks,
+        productRows:
+          productRows.slice(
+            0,
+            8
+          ),
+        topBrands:
+          groupInterest(
+            "brand"
+          ),
+        topCategories:
+          groupInterest(
+            "category"
+          ),
+      };
+    }, [
+      analyticsEvents,
+      products,
+    ]);
 
   /* =======================================================
      FILTER PRODUCTS
@@ -2482,8 +3294,20 @@ export default function AdminDashboard({
 
       <section className="admin-content">
         {error && (
-          <div className="error admin-error">
+          <div
+            className="error admin-error"
+            role="alert"
+          >
             {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div
+            className="admin-success"
+            role="status"
+          >
+            {successMessage}
           </div>
         )}
 
@@ -2590,6 +3414,266 @@ export default function AdminDashboard({
             </span>
           </div>
         </div>
+
+        {/* =================================================
+            CUSTOMER INTEREST ANALYTICS
+        ================================================= */}
+
+        <div
+          className="admin-title analytics-heading"
+        >
+          <div>
+            <p className="kicker">
+              CUSTOMER INTEREST
+            </p>
+
+            <h2 className="admin-section-title">
+              Last 30 days.
+            </h2>
+
+            <p className="analytics-subtitle">
+              Privacy-conscious interaction data:
+              product views and inquiry clicks only.
+            </p>
+          </div>
+        </div>
+
+        {analyticsError ? (
+          <div
+            className="error admin-error"
+            role="alert"
+          >
+            {analyticsError}
+          </div>
+        ) : analyticsLoading ? (
+          <div className="empty analytics-empty">
+            Loading business insights...
+          </div>
+        ) : (
+          <>
+            <div className="stats analytics-stats">
+              <div>
+                <Eye />
+
+                <strong>
+                  {
+                    analyticsSummary.views
+                  }
+                </strong>
+
+                <span>
+                  Product views
+                </span>
+              </div>
+
+              <div>
+                <MessageCircle />
+
+                <strong>
+                  {
+                    analyticsSummary.whatsappClicks
+                  }
+                </strong>
+
+                <span>
+                  WhatsApp clicks
+                </span>
+              </div>
+
+              <div>
+                <Instagram />
+
+                <strong>
+                  {
+                    analyticsSummary.instagramClicks
+                  }
+                </strong>
+
+                <span>
+                  Instagram clicks
+                </span>
+              </div>
+
+              <div>
+                <BarChart3 />
+
+                <strong>
+                  {
+                    analyticsSummary.inquiryClicks
+                  }
+                </strong>
+
+                <span>
+                  Total inquiry clicks
+                </span>
+              </div>
+            </div>
+
+            {analyticsSummary
+              .productRows.length === 0 ? (
+              <div className="empty analytics-empty">
+                Analytics will appear here as
+                customers view products and use
+                the inquiry buttons.
+              </div>
+            ) : (
+              <div className="analytics-grid">
+                <div className="analytics-card analytics-card-wide">
+                  <div className="analytics-card-heading">
+                    <div>
+                      <p className="kicker">
+                        TOP PRODUCTS
+                      </p>
+
+                      <h3>
+                        Products generating interest.
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="analytics-table-wrap">
+                    <table className="analytics-table">
+                      <thead>
+                        <tr>
+                          <th>
+                            Product
+                          </th>
+                          <th>
+                            Views
+                          </th>
+                          <th>
+                            WhatsApp
+                          </th>
+                          <th>
+                            Instagram
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {analyticsSummary.productRows.map(
+                          (row) => (
+                            <tr
+                              key={
+                                row.id
+                              }
+                            >
+                              <td>
+                                <strong>
+                                  {
+                                    row.name
+                                  }
+                                </strong>
+
+                                <span>
+                                  {
+                                    row.brand
+                                  }
+                                </span>
+                              </td>
+
+                              <td>
+                                {
+                                  row.views
+                                }
+                              </td>
+
+                              <td>
+                                {
+                                  row.whatsapp
+                                }
+                              </td>
+
+                              <td>
+                                {
+                                  row.instagram
+                                }
+                              </td>
+                            </tr>
+                          )
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="analytics-card">
+                  <p className="kicker">
+                    TOP CATEGORIES
+                  </p>
+
+                  <h3>
+                    Category interest.
+                  </h3>
+
+                  <div className="analytics-ranking">
+                    {analyticsSummary.topCategories.map(
+                      (item) => (
+                        <div
+                          key={
+                            item.name
+                          }
+                        >
+                          <span>
+                            {
+                              item.name
+                            }
+                          </span>
+
+                          <strong>
+                            {
+                              item.inquiries
+                            } inquiries ·{" "}
+                            {
+                              item.views
+                            } views
+                          </strong>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                <div className="analytics-card">
+                  <p className="kicker">
+                    TOP BRANDS
+                  </p>
+
+                  <h3>
+                    Brand interest.
+                  </h3>
+
+                  <div className="analytics-ranking">
+                    {analyticsSummary.topBrands.map(
+                      (item) => (
+                        <div
+                          key={
+                            item.name
+                          }
+                        >
+                          <span>
+                            {
+                              item.name
+                            }
+                          </span>
+
+                          <strong>
+                            {
+                              item.inquiries
+                            } inquiries ·{" "}
+                            {
+                              item.views
+                            } views
+                          </strong>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         {/* =================================================
             CATEGORY STATISTICS
@@ -2891,6 +3975,9 @@ export default function AdminDashboard({
                           !review.is_approved
                         )
                       }
+                      disabled={
+                        reviewActionId !== null
+                      }
                     >
                       {review.is_approved
                         ? "Hide Review"
@@ -2901,10 +3988,14 @@ export default function AdminDashboard({
                       type="button"
                       className="icon-btn danger"
                       title="Delete review"
+                      aria-label="Delete review"
                       onClick={() =>
                         removeReview(
                           review.id
                         )
+                      }
+                      disabled={
+                        reviewActionId !== null
                       }
                     >
                       <Trash2
@@ -3153,6 +4244,7 @@ export default function AdminDashboard({
                         type="button"
                         className="icon-btn"
                         title="Edit promotion"
+                        aria-label={`Edit ${promotion.name}`}
                         onClick={() =>
                           openEditPromotion(
                             promotion
@@ -3170,6 +4262,7 @@ export default function AdminDashboard({
                         type="button"
                         className="icon-btn danger"
                         title="Delete promotion"
+                        aria-label={`Delete ${promotion.name}`}
                         onClick={() =>
                           removePromotion(
                             promotion.id
@@ -3225,8 +4318,260 @@ export default function AdminDashboard({
           >
             {settingsSaving
               ? "Saving..."
-              : "Save Website Settings"}
+              : settingsDirty
+                ? "Save Changes"
+                : "Saved"}
           </button>
+        </div>
+
+        <div className="settings-card taxonomy-card">
+          <div className="settings-section">
+            <div className="settings-section-heading">
+              <h3>
+                Catalogue organization
+              </h3>
+
+              <p>
+                Add or remove the brands and
+                categories used when creating
+                products. Items currently assigned
+                to products cannot be deleted.
+              </p>
+            </div>
+
+            <div className="taxonomy-grid">
+              <div className="taxonomy-panel">
+                <div className="taxonomy-panel-heading">
+                  <div>
+                    <h4>
+                      Brands
+                    </h4>
+
+                    <p>
+                      {brands.length} available
+                    </p>
+                  </div>
+                </div>
+
+                <div className="taxonomy-add-row">
+                  <input
+                    value={newBrandName}
+                    onChange={(event) =>
+                      setNewBrandName(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Add a brand"
+                    aria-label="New brand name"
+                    disabled={taxonomySaving}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "Enter"
+                      ) {
+                        event.preventDefault();
+                        void addBrand();
+                      }
+                    }}
+                  />
+
+                  <button
+                    className="button primary"
+                    type="button"
+                    onClick={addBrand}
+                    disabled={
+                      taxonomySaving ||
+                      !newBrandName.trim()
+                    }
+                  >
+                    <Plus size={16} />
+                    Add
+                  </button>
+                </div>
+
+                <div className="taxonomy-list">
+                  {brands.length === 0 ? (
+                    <p className="taxonomy-empty">
+                      No brands added yet.
+                    </p>
+                  ) : (
+                    brands.map((brand) => {
+                      const usageCount =
+                        products.filter(
+                          (product) =>
+                            product.brand_id ===
+                            brand.id
+                        ).length;
+
+                      return (
+                        <div
+                          className="taxonomy-item"
+                          key={brand.id}
+                        >
+                          <div>
+                            <strong>
+                              {brand.name}
+                            </strong>
+
+                            <span>
+                              {usageCount} product
+                              {usageCount === 1
+                                ? ""
+                                : "s"}
+                            </span>
+                          </div>
+
+                          <button
+                            className="icon-btn danger"
+                            type="button"
+                            onClick={() =>
+                              removeBrand(
+                                brand
+                              )
+                            }
+                            disabled={
+                              taxonomySaving ||
+                              usageCount > 0
+                            }
+                            aria-label={`Delete ${brand.name}`}
+                            title={
+                              usageCount > 0
+                                ? "Reassign products before deleting this brand."
+                                : `Delete ${brand.name}`
+                            }
+                          >
+                            <Trash2
+                              size={16}
+                            />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="taxonomy-panel">
+                <div className="taxonomy-panel-heading">
+                  <div>
+                    <h4>
+                      Categories
+                    </h4>
+
+                    <p>
+                      {categories.length} available
+                    </p>
+                  </div>
+                </div>
+
+                <div className="taxonomy-add-row">
+                  <input
+                    value={newCategoryName}
+                    onChange={(event) =>
+                      setNewCategoryName(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Add a category"
+                    aria-label="New category name"
+                    disabled={taxonomySaving}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "Enter"
+                      ) {
+                        event.preventDefault();
+                        void addCategory();
+                      }
+                    }}
+                  />
+
+                  <button
+                    className="button primary"
+                    type="button"
+                    onClick={addCategory}
+                    disabled={
+                      taxonomySaving ||
+                      !newCategoryName.trim()
+                    }
+                  >
+                    <Plus size={16} />
+                    Add
+                  </button>
+                </div>
+
+                <div className="taxonomy-list">
+                  {categories.length === 0 ? (
+                    <p className="taxonomy-empty">
+                      No categories added yet.
+                    </p>
+                  ) : (
+                    categories.map(
+                      (category) => {
+                        const usageCount =
+                          products.filter(
+                            (product) =>
+                              product.category_id ===
+                              category.id
+                          ).length;
+
+                        return (
+                          <div
+                            className="taxonomy-item"
+                            key={
+                              category.id
+                            }
+                          >
+                            <div>
+                              <strong>
+                                {
+                                  category.name
+                                }
+                              </strong>
+
+                              <span>
+                                {
+                                  usageCount
+                                } product
+                                {usageCount ===
+                                1
+                                  ? ""
+                                  : "s"}
+                              </span>
+                            </div>
+
+                            <button
+                              className="icon-btn danger"
+                              type="button"
+                              onClick={() =>
+                                removeCategory(
+                                  category
+                                )
+                              }
+                              disabled={
+                                taxonomySaving ||
+                                usageCount > 0
+                              }
+                              aria-label={`Delete ${category.name}`}
+                              title={
+                                usageCount > 0
+                                  ? "Reassign products before deleting this category."
+                                  : `Delete ${category.name}`
+                              }
+                            >
+                              <Trash2
+                                size={
+                                  16
+                                }
+                              />
+                            </button>
+                          </div>
+                        );
+                      }
+                    )
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="settings-card">
@@ -3695,6 +5040,8 @@ export default function AdminDashboard({
                               p.image_url
                             }
                             alt=""
+                            loading="lazy"
+                            decoding="async"
                           />
                         ) : (
                           <div className="tiny-placeholder">
@@ -3741,6 +5088,7 @@ export default function AdminDashboard({
                         <button
                           className="icon-btn"
                           title="Edit"
+                          aria-label={`Edit ${p.name}`}
                           type="button"
                           onClick={() =>
                             openEditProduct(
@@ -3758,6 +5106,7 @@ export default function AdminDashboard({
                         <button
                           className="icon-btn danger"
                           title="Delete"
+                          aria-label={`Delete ${p.name}`}
                           type="button"
                           onClick={() =>
                             remove(
@@ -3790,13 +5139,24 @@ export default function AdminDashboard({
 
       {section === "products" && editor && (
         <div className="modal-backdrop">
-          <div className="editor-modal">
+          <div
+            className="editor-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="product-editor-title"
+          >
             <button
               className="icon-btn modal-close"
-              onClick={() =>
-                setEditor(null)
-              }
+              onClick={() => {
+                if (
+                  confirmDiscardChanges()
+                ) {
+                  setEditor(null);
+                }
+              }}
               type="button"
+              disabled={productSaving}
+              aria-label="Close product editor"
             >
               <X />
             </button>
@@ -3807,7 +5167,7 @@ export default function AdminDashboard({
                 : "NEW PRODUCT"}
             </p>
 
-            <h2>
+            <h2 id="product-editor-title">
               {editor.id
                 ? "Update piece"
                 : "Add a new piece"}
@@ -4054,7 +5414,7 @@ export default function AdminDashboard({
 
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       disabled={
                         uploading
                       }
@@ -4076,7 +5436,7 @@ export default function AdminDashboard({
                   </label>
 
                   <span className="upload-help">
-                    JPG, PNG, WEBP • max 8MB
+                    JPG, PNG, WEBP • max 5MB • 1200×1500 recommended
                   </span>
                 </div>
 
@@ -4087,6 +5447,8 @@ export default function AdminDashboard({
                         editor.image_url
                       }
                       alt="Product preview"
+                      loading="lazy"
+                      decoding="async"
                     />
 
                     <button
@@ -4324,6 +5686,8 @@ export default function AdminDashboard({
                                 alt={
                                   variant.color_name
                                 }
+                              loading="lazy"
+                                decoding="async"
                               />
                             ) : (
                               <div className="variant-placeholder">
@@ -4348,6 +5712,7 @@ export default function AdminDashboard({
                                 type="button"
                                 className="icon-btn"
                                 title="Edit color"
+                                aria-label="Edit color"
                                 onClick={() =>
                                   setVariantEditor(
                                     {
@@ -4367,6 +5732,7 @@ export default function AdminDashboard({
                                 type="button"
                                 className="icon-btn danger"
                                 title="Delete color"
+                                aria-label="Delete color"
                                 onClick={() =>
                                   removePendingVariant(
                                     index
@@ -4425,6 +5791,8 @@ export default function AdminDashboard({
                                 alt={
                                   variant.color_name
                                 }
+                              loading="lazy"
+                                decoding="async"
                               />
                             ) : (
                               <div className="variant-placeholder">
@@ -4457,6 +5825,7 @@ export default function AdminDashboard({
                                 type="button"
                                 className="icon-btn"
                                 title="Edit color"
+                                aria-label="Edit color"
                                 onClick={() =>
                                   setVariantEditor(
                                     {
@@ -4492,6 +5861,7 @@ export default function AdminDashboard({
                                 type="button"
                                 className="icon-btn danger"
                                 title="Delete color"
+                                aria-label="Delete color"
                                 onClick={() =>
                                   removeVariant(
                                     variant.id
@@ -4522,8 +5892,15 @@ export default function AdminDashboard({
                 <button
                   type="button"
                   className="button secondary"
-                  onClick={() =>
-                    setEditor(null)
+                  onClick={() => {
+                    if (
+                      confirmDiscardChanges()
+                    ) {
+                      setEditor(null);
+                    }
+                  }}
+                  disabled={
+                    productSaving
                   }
                 >
                   Cancel
@@ -4532,8 +5909,14 @@ export default function AdminDashboard({
                 <button
                   className="button primary"
                   type="submit"
+                  disabled={
+                    productSaving ||
+                    uploading
+                  }
                 >
-                  Save Product
+                  {productSaving
+                    ? "Saving..."
+                    : "Save Product"}
                 </button>
               </div>
             </form>
@@ -4547,13 +5930,26 @@ export default function AdminDashboard({
 
       {variantEditor && (
         <div className="modal-backdrop">
-          <div className="editor-modal variant-modal">
+          <div
+            className="editor-modal variant-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="variant-editor-title"
+          >
             <button
               className="icon-btn modal-close"
-              onClick={() =>
-                setVariantEditor(null)
-              }
+              onClick={() => {
+                if (
+                  confirmDiscardChanges()
+                ) {
+                  setVariantEditor(null);
+                }
+              }}
               type="button"
+              disabled={
+                variantSaving
+              }
+              aria-label="Close color editor"
             >
               <X />
             </button>
@@ -4564,7 +5960,7 @@ export default function AdminDashboard({
                 : "NEW COLOR"}
             </p>
 
-            <h2>
+            <h2 id="variant-editor-title">
               {variantEditor.id
                 ? "Update color"
                 : "Add a color"}
@@ -4608,7 +6004,7 @@ export default function AdminDashboard({
 
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       disabled={
                         variantUploading
                       }
@@ -4630,7 +6026,7 @@ export default function AdminDashboard({
                   </label>
 
                   <span className="upload-help">
-                    JPG, PNG, WEBP • max 8MB
+                    JPG, PNG, WEBP • max 5MB • 1200×1500 recommended
                   </span>
                 </div>
 
@@ -4723,10 +6119,17 @@ export default function AdminDashboard({
                 <button
                   type="button"
                   className="button secondary"
-                  onClick={() =>
-                    setVariantEditor(
-                      null
-                    )
+                  onClick={() => {
+                    if (
+                      confirmDiscardChanges()
+                    ) {
+                      setVariantEditor(
+                        null
+                      );
+                    }
+                  }}
+                  disabled={
+                    variantSaving
                   }
                 >
                   Cancel
@@ -4739,10 +6142,13 @@ export default function AdminDashboard({
                     saveVariant
                   }
                   disabled={
-                    variantUploading
+                    variantUploading ||
+                    variantSaving
                   }
                 >
-                  Save Color
+                  {variantSaving
+                    ? "Saving..."
+                    : "Save Color"}
                 </button>
               </div>
             </div>
@@ -4756,15 +6162,28 @@ export default function AdminDashboard({
 
       {section === "promotions" && promotionEditor && (
         <div className="modal-backdrop">
-          <div className="editor-modal promotion-modal">
+          <div
+            className="editor-modal promotion-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="promotion-editor-title"
+          >
             <button
               className="icon-btn modal-close"
-              onClick={() =>
-                setPromotionEditor(
-                  null
-                )
-              }
+              onClick={() => {
+                if (
+                  confirmDiscardChanges()
+                ) {
+                  setPromotionEditor(
+                    null
+                  );
+                }
+              }}
               type="button"
+              disabled={
+                promotionSaving
+              }
+              aria-label="Close promotion editor"
             >
               <X />
             </button>
@@ -4775,7 +6194,7 @@ export default function AdminDashboard({
                 : "NEW SALE"}
             </p>
 
-            <h2>
+            <h2 id="promotion-editor-title">
               {promotionEditor.id
                 ? "Update promotion"
                 : "Create a sale"}
@@ -5320,10 +6739,17 @@ export default function AdminDashboard({
                 <button
                   type="button"
                   className="button secondary"
-                  onClick={() =>
-                    setPromotionEditor(
-                      null
-                    )
+                  onClick={() => {
+                    if (
+                      confirmDiscardChanges()
+                    ) {
+                      setPromotionEditor(
+                        null
+                      );
+                    }
+                  }}
+                  disabled={
+                    promotionSaving
                   }
                 >
                   Cancel
@@ -5332,8 +6758,13 @@ export default function AdminDashboard({
                 <button
                   type="submit"
                   className="button primary"
+                  disabled={
+                    promotionSaving
+                  }
                 >
-                  Save Sale
+                  {promotionSaving
+                    ? "Saving..."
+                    : "Save Sale"}
                 </button>
               </div>
             </form>
