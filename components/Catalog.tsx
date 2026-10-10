@@ -24,17 +24,6 @@ import {
   Gender,
 } from "@/types/product";
 
-const defaultCategories = [
-  "All",
-  "Bags",
-  "Shoes",
-  "Slippers",
-  "Jewelry",
-  "Wallets",
-  "Belts",
-  "Scarves",
-];
-
 /* =========================================================
    PROMOTION TYPES
 ========================================================= */
@@ -1078,18 +1067,24 @@ export default function Catalog() {
 
   const categories =
     useMemo(
-      () =>
-        Array.from(
-          new Set([
-            ...defaultCategories,
-            ...products
+      () => [
+        "All",
+        ...Array.from(
+          new Set(
+            products
               .map(
                 (p) =>
                   p.category
               )
-              .filter(Boolean),
-          ])
+              .filter(
+                (value): value is string =>
+                  Boolean(value)
+              )
+          )
+        ).sort((a, b) =>
+          a.localeCompare(b)
         ),
+      ],
       [products]
     );
 
