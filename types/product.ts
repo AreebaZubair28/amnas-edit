@@ -10,6 +10,7 @@ export type Gender =
 export type Product = {
   id: string;
   name: string;
+  slug: string;
 
   // Existing product fields
   brand: string;

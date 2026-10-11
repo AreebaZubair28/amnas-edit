@@ -469,7 +469,7 @@ export default function HomePage() {
                     }),
 
                 supabase()
-                    .from("product_reviews")
+                    .from("public_product_reviews")
                     .select(
                         "id, product_id, rating, review_text, created_at"
                     )

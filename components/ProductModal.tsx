@@ -57,11 +57,11 @@ type PromotionRule = {
   created_at: string;
 };
 
-type PromotionWithRules = Promotion & {
+export type PromotionWithRules = Promotion & {
   rules: PromotionRule[];
 };
 
-type SiteContactSettings = {
+export type SiteContactSettings = {
   instagram_url: string;
   whatsapp_number: string;
   tiktok_url: string;
@@ -115,10 +115,28 @@ function makeWhatsApp(
     product.image_url ||
     "";
 
-  const pageUrl =
+  const configuredSiteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(
+      /\/+$/,
+      ""
+    ) || "";
+
+  const browserOrigin =
     typeof window !== "undefined"
-      ? window.location.href
+      ? window.location.origin
       : "";
+
+  const productBaseUrl =
+    configuredSiteUrl || browserOrigin;
+
+  const pageUrl =
+    product.slug && productBaseUrl
+      ? `${productBaseUrl}/products/${encodeURIComponent(
+          product.slug
+        )}`
+      : typeof window !== "undefined"
+        ? window.location.href
+        : "";
 
   const originalPriceLabel =
     formatInquiryPrice(originalPrice);
@@ -321,18 +339,29 @@ async function recordAnalyticsEvent(
   eventType: AnalyticsEventType
 ) {
   try {
-    const { error } = await supabase()
-      .from("analytics_events")
-      .insert({
-        product_id: productId,
-        event_type: eventType,
-      });
+    const response = await fetch(
+      "/api/analytics",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          product_id: productId,
+          event_type: eventType,
+        }),
+        keepalive: true,
+      }
+    );
 
-    if (error) {
-      console.error(
-        "Analytics event could not be recorded:",
-        error
-      );
+    if (!response.ok) {
+      if (response.status !== 429) {
+        console.error(
+          "Analytics event could not be recorded. Status:",
+          response.status
+        );
+      }
       return false;
     }
 
@@ -353,6 +382,7 @@ export default function ProductModal({
   allProducts,
   onOpenProduct,
   close,
+  pageMode = false,
 }: {
   product: Product;
   promotion: PromotionWithRules | null;
@@ -360,6 +390,7 @@ export default function ProductModal({
   allProducts: Product[];
   onOpenProduct: (product: Product) => void;
   close: () => void;
+  pageMode?: boolean;
 }) {
   const [
     variants,
@@ -417,6 +448,11 @@ export default function ProductModal({
   ] = useState("");
 
   const [
+    copyLinkMessage,
+    setCopyLinkMessage,
+  ] = useState("");
+
+  const [
     reviewError,
     setReviewError,
   ] = useState("");
@@ -430,6 +466,10 @@ export default function ProductModal({
     useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (pageMode) {
+      return;
+    }
+
     const previousActiveElement =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
@@ -518,7 +558,7 @@ export default function ProductModal({
         previousOverflow;
       previousActiveElement?.focus();
     };
-  }, [product.id]);
+  }, [product.id, pageMode]);
 
   useEffect(() => {
     let active = true;
@@ -589,7 +629,7 @@ export default function ProductModal({
         data,
         error,
       } = await supabase()
-        .from("product_reviews")
+        .from("public_product_reviews")
         .select(
           "id, product_id, rating, review_text, is_approved, created_at"
         )
@@ -625,64 +665,19 @@ export default function ProductModal({
 
   useEffect(() => {
     /*
-     * Count one product view per browser session.
+     * Record a product view whenever the product modal is opened.
      *
-     * In development, React can run effects more than
-     * once to detect unsafe side effects. The marker is
-     * written BEFORE the request starts so two effect
-     * executions cannot both record the same view.
+     * Duplicate protection now lives on the server in /api/analytics.
+     * That endpoint ignores another view for the same product from the
+     * same fingerprint within the short duplicate window (30 seconds).
      *
-     * sessionStorage is used only for analytics
-     * deduplication. It is not used for authentication
-     * or authorization.
+     * This also safely handles React development-mode effect replays,
+     * so browser sessionStorage deduplication is no longer needed.
      */
-    if (
-      typeof window === "undefined"
-    ) {
-      return;
-    }
-
-    const storageKey =
-      `amnas-edit-view:${product.id}`;
-
-    if (
-      sessionStorage.getItem(
-        storageKey
-      )
-    ) {
-      return;
-    }
-
-    sessionStorage.setItem(
-      storageKey,
-      "pending"
+    void recordAnalyticsEvent(
+      product.id,
+      "product_view"
     );
-
-    async function trackView() {
-      const recorded =
-        await recordAnalyticsEvent(
-          product.id,
-          "product_view"
-        );
-
-      if (recorded) {
-        sessionStorage.setItem(
-          storageKey,
-          "1"
-        );
-      } else {
-        /*
-         * If the analytics request fails, remove the
-         * temporary marker so a later product opening
-         * can try again.
-         */
-        sessionStorage.removeItem(
-          storageKey
-        );
-      }
-    }
-
-    void trackView();
   }, [product.id]);
 
   async function submitReview(
@@ -708,24 +703,66 @@ export default function ProductModal({
       return;
     }
 
+    if (reviewText.trim().length < 5) {
+      setReviewError(
+        "Please write at least 5 characters in your review."
+      );
+      return;
+    }
+
     setReviewSubmitting(true);
 
     try {
-      const { error } = await supabase()
-        .from("product_reviews")
-        .insert({
-          product_id: product.id,
-          customer_name: reviewName.trim(),
-          rating: reviewRating,
-          review_text: reviewText.trim(),
-          is_approved: false,
-        });
+      const formData = new FormData(
+        event.currentTarget
+      );
 
-      if (error) {
-        console.error("Failed to submit review:", error);
-        setReviewError(
-          "Your review couldn't be submitted right now. Please try again."
-        );
+      const response = await fetch(
+        "/api/reviews",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            product_id: product.id,
+            customer_name:
+              reviewName.trim(),
+            rating: reviewRating,
+            review_text:
+              reviewText.trim(),
+
+            // Honeypot field. Real users never
+            // interact with this input.
+            website:
+              formData.get(
+                "website"
+              ) || "",
+          }),
+        }
+      );
+
+      const result =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (!response.ok) {
+        if (
+          response.status === 429
+        ) {
+          setReviewError(
+            result?.message ||
+              "You've submitted reviews too quickly. Please wait a little before trying again."
+          );
+        } else {
+          setReviewError(
+            result?.message ||
+              "Your review couldn't be submitted right now. Please try again."
+          );
+        }
+
         return;
       }
 
@@ -736,7 +773,10 @@ export default function ProductModal({
         "Thank you! Your review has been submitted and will appear after approval."
       );
     } catch (error) {
-      console.error("Unexpected review submission error:", error);
+      console.error(
+        "Unexpected review submission error:",
+        error
+      );
       setReviewError(
         "Your review couldn't be submitted right now. Please try again."
       );
@@ -809,30 +849,109 @@ export default function ProductModal({
       allProducts
     );
 
+  const configuredProductSiteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(
+      /\/+$/,
+      ""
+    ) || "";
+
+  const productPageBaseUrl =
+    configuredProductSiteUrl ||
+    (typeof window !== "undefined"
+      ? window.location.origin
+      : "");
+
+  const productPageUrl =
+    product.slug && productPageBaseUrl
+      ? `${productPageBaseUrl}/products/${encodeURIComponent(
+          product.slug
+        )}`
+      : "";
+
+  async function copyProductLink() {
+    if (!productPageUrl) {
+      setCopyLinkMessage(
+        "Product link is not available right now."
+      );
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(productPageUrl);
+      setCopyLinkMessage("Product link copied.");
+
+      window.setTimeout(() => {
+        setCopyLinkMessage("");
+      }, 2500);
+    } catch (error) {
+      console.error(
+        "Could not copy product link:",
+        error
+      );
+
+      setCopyLinkMessage(
+        "Could not copy the link. Please try again."
+      );
+    }
+  }
+
+  const ProductTitleTag =
+    pageMode ? "h1" : "h2";
+
   return (
     <div
-      className="modal-backdrop"
-      onClick={close}
+      className={
+        pageMode
+          ? "product-page-shell"
+          : "modal-backdrop"
+      }
+      onClick={
+        pageMode ? undefined : close
+      }
     >
       <div
         ref={modalRef}
-        className="product-modal"
-        role="dialog"
-        aria-modal="true"
+        className={`product-modal${
+          pageMode
+            ? " product-page-modal"
+            : ""
+        }`}
+        role={
+          pageMode
+            ? undefined
+            : "dialog"
+        }
+        aria-modal={
+          pageMode
+            ? undefined
+            : true
+        }
         aria-labelledby={`product-modal-title-${product.id}`}
-        tabIndex={-1}
+        tabIndex={
+          pageMode ? undefined : -1
+        }
         onClick={(e) =>
           e.stopPropagation()
         }
       >
-        <button
-          className="icon-btn modal-close"
-          onClick={close}
-          type="button"
-          aria-label="Close product details"
-        >
-          <X size={20} />
-        </button>
+        {pageMode ? (
+          <a
+            className="product-page-back"
+            href="/collection"
+            aria-label="Back to collection"
+          >
+            ← Back to collection
+          </a>
+        ) : (
+          <button
+            className="icon-btn modal-close"
+            onClick={close}
+            type="button"
+            aria-label="Close product details"
+          >
+            <X size={20} />
+          </button>
+        )}
 
         <div className="modal-media">
           {displayImage ? (
@@ -907,11 +1026,11 @@ export default function ProductModal({
             {product.brand}
           </div>
 
-          <h2
+          <ProductTitleTag
             id={`product-modal-title-${product.id}`}
           >
             {product.name}
-          </h2>
+          </ProductTitleTag>
 
           {originalPrice !==
             null && (
@@ -1094,6 +1213,29 @@ export default function ProductModal({
             </span>
           </div>
 
+          {!pageMode && product.slug && (
+            <div className="product-share-link-wrap">
+              <button
+                type="button"
+                className="product-permalink"
+                onClick={copyProductLink}
+                aria-label={`Copy link for ${product.name}`}
+              >
+                Copy product link
+              </button>
+
+              {copyLinkMessage && (
+                <span
+                  className="product-copy-feedback"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {copyLinkMessage}
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="modal-actions">
             <a
               href={wa}
@@ -1267,6 +1409,28 @@ export default function ProductModal({
                 borderTop: "1px solid var(--line)",
               }}
             >
+              <div
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  width: 1,
+                  height: 1,
+                  overflow: "hidden",
+                  clip: "rect(0 0 0 0)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <label>
+                  Website
+                  <input
+                    name="website"
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                  />
+                </label>
+              </div>
+
               <label
                 style={{
                   display: "grid",
@@ -1283,7 +1447,9 @@ export default function ProductModal({
                     setReviewName(e.target.value)
                   }
                   placeholder="Your name"
+                  minLength={1}
                   maxLength={80}
+                  autoComplete="name"
                   required
                 />
               </label>
@@ -1329,6 +1495,7 @@ export default function ProductModal({
                     setReviewText(e.target.value)
                   }
                   placeholder="Share your experience with this piece..."
+                  minLength={5}
                   maxLength={1000}
                   required
                 />
