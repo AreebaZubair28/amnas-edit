@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -13,6 +14,7 @@ type PolicySection = {
   key:
     | "delivery_policy"
     | "return_policy"
+    | "preorder_policy"
     | "in_stock_policy"
     | "customs_hold_delay_policy"
     | "privacy_policy"
@@ -28,6 +30,10 @@ const policySections: PolicySection[] = [
   {
     key: "return_policy",
     title: "Return & Exchange Policy",
+  },
+  {
+    key: "preorder_policy",
+    title: "Preorder Policy",
   },
   {
     key: "in_stock_policy",
@@ -95,22 +101,22 @@ export default function PoliciesPage() {
   return (
     <main className="admin-page">
       <header className="site-header">
-        <a
+        <Link
           href="/"
           className="logo"
         >
           Amna&apos;s{" "}
           <span>Edit</span>
-        </a>
+        </Link>
 
-        <nav aria-label="Primary navigation">
-          <a href="/">
+        <nav>
+          <Link href="/">
             Home
-          </a>
+          </Link>
 
-          <a href="/collection">
+          <Link href="/collection">
             Collection
-          </a>
+          </Link>
         </nav>
       </header>
 
@@ -122,7 +128,7 @@ export default function PoliciesPage() {
             "90px 7vw 110px",
         }}
       >
-        <a
+        <Link
           href="/"
           style={{
             display: "inline-flex",
@@ -138,7 +144,7 @@ export default function PoliciesPage() {
             size={15}
           />
           Back to home
-        </a>
+        </Link>
 
         <p className="kicker">
           AMNA&apos;S EDIT

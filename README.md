@@ -333,3 +333,44 @@ Possible future enhancements include:
 - Further component refactoring
 - More advanced analytics and reporting
 - Automated backup and monitoring workflows
+
+## Step 8I — Automated verification
+
+Run the dependency-free project contract checks:
+
+```bash
+npm test
+```
+
+These tests check route presence and important source-level security/input-validation
+contracts; **they are not a substitute for real browser or database tests**.
+
+With dependencies installed and environment variables configured, verify:
+
+```bash
+npm run lint
+npx tsc --noEmit
+npm run build
+```
+
+Start the app (`npm run dev` or `npm run start`), then run public-route smoke checks:
+
+```bash
+TEST_BASE_URL=http://localhost:3000 npm run test:smoke
+```
+
+The smoke script expects a responding application, verifies publicly reachable pages
+and security headers, and checks that unauthenticated admin access redirects. It
+only sends GET requests; it never writes to Supabase. Run it against a deployment
+using `TEST_BASE_URL=https://your-domain.example` if desired.
+
+**Manual checks still needed:** owner login/logout, admin editing, image uploads,
+product filters/variants, promotion timing/prices, review submission/moderation,
+analytics records, mobile layouts, and browser-console CSP violations.
+
+## Step 8I — Metadata URL correction
+
+The root layout resolves Open Graph and Twitter image URLs using
+`NEXT_PUBLIC_SITE_URL`, falling back to `https://amnas-edit.vercel.app`.
+Set `NEXT_PUBLIC_SITE_URL=https://amnas-edit.vercel.app` for production
+and local production-build verification. This does not deploy changes.

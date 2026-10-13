@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentProps } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import ProductModal from "@/components/ProductModal";
@@ -36,21 +37,21 @@ export default function ProductPage({
   return (
     <main className="standalone-product-page">
       <header className="product-page-header">
-        <a
+        <Link
           href="/"
           className="product-page-logo"
           aria-label="Amna's Edit home"
         >
           Amna&apos;s <span>Edit</span>
-        </a>
+        </Link>
 
         <nav aria-label="Product page navigation">
-          <a href="/collection">
+          <Link href="/collection">
             Collection
-          </a>
-          <a href="/policies">
+          </Link>
+          <Link href="/policies">
             Policies
-          </a>
+          </Link>
         </nav>
       </header>
 

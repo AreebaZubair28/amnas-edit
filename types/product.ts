@@ -52,6 +52,7 @@ export type ProductVariant = {
   details: string | null;
   delivery_return: string | null;
   price: number | null;
+  is_available: boolean;
   created_at: string;
 };
 

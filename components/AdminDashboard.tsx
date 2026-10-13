@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Admin-only previews/thumbnails; public storefront images use optimized Next.js Image. */
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
@@ -19,8 +21,11 @@ import {
   Instagram,
   BarChart3,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { optimizeProductImage } from "@/lib/imageUpload";
+import { storagePathsFromUrls } from "@/lib/storageImages";
 import {
   Product,
   ProductStatus,
@@ -30,288 +35,17 @@ import {
   STATUS_CLASS,
 } from "@/types/product";
 
-/* =========================================================
-   BASIC TYPES
-========================================================= */
-
-type Brand = {
-  id: string;
-  name: string;
-  slug: string;
-};
-
-type Category = {
-  id: string;
-  name: string;
-  slug: string;
-};
-
-type ProductWithRefs = Product & {
-  brand_id: string | null;
-  category_id: string | null;
-};
-
-type EditorProduct = Partial<Product> & {
-  brand_id?: string | null;
-  category_id?: string | null;
-};
-
-type VariantEditor = {
-  id?: string;
-  product_id?: string;
-  color_name: string;
-  image_url: string;
-  gallery: string[];
-  details: string;
-  price: number | null;
-};
-
-/* =========================================================
-   PROMOTION TYPES
-========================================================= */
-
-type PromotionDiscountType =
-  | "percentage"
-  | "fixed";
-
-type PromotionRuleType =
-  | "all"
-  | "status"
-  | "category"
-  | "brand"
-  | "gender"
-  | "product";
-
-type Promotion = {
-  id: string;
-  name: string;
-  banner_text: string;
-  discount_type: PromotionDiscountType;
-  discount_value: number;
-  start_at: string;
-  end_at: string;
-  is_active: boolean;
-  created_at: string;
-};
-
-type PromotionRule = {
-  id?: string;
-  promotion_id?: string;
-  rule_type: PromotionRuleType;
-  status_value: string | null;
-  category_id: string | null;
-  brand_id: string | null;
-  gender_value: Gender | null;
-  product_id: string | null;
-  created_at?: string;
-};
-
-type PromotionEditor = {
-  id?: string;
-  name: string;
-  banner_text: string;
-  discount_type: PromotionDiscountType;
-  discount_value: number;
-  start_at: string;
-  end_at: string;
-  is_active: boolean;
-};
-
-type PromotionStatus =
-  | "upcoming"
-  | "active"
-  | "ended"
-  | "disabled";
-type SiteSettings = {
-  about_title: string;
-  about_text: string;
-  delivery_policy: string;
-  return_policy: string;
-  in_stock_policy: string;
-  customs_hold_delay_policy: string;
-  privacy_policy: string;
-  terms_conditions: string;
-  instagram_url: string;
-  whatsapp_number: string;
-  tiktok_url: string;
-};
-
-type ProductReview = {
-  id: string;
-  product_id: string;
-  customer_name: string;
-  rating: number;
-  review_text: string;
-  is_approved: boolean;
-  created_at: string;
-};
-
-type AnalyticsEvent = {
-  product_id: string;
-  event_type:
-    | "product_view"
-    | "whatsapp_click"
-    | "instagram_click";
-  created_at: string;
-};
-
-const blankSiteSettings: SiteSettings = {
-  about_title: "",
-  about_text: "",
-  delivery_policy: "",
-  return_policy: "",
-  in_stock_policy: "",
-  customs_hold_delay_policy: "",
-  privacy_policy: "",
-  terms_conditions: "",
-  instagram_url: "",
-  whatsapp_number: "",
-  tiktok_url: "",
-};
-
-const blankPromotion: PromotionEditor = {
-  name: "",
-  banner_text: "",
-  discount_type: "percentage",
-  discount_value: 14,
-  start_at: "",
-  end_at: "",
-  is_active: true,
-};
-
-const blankRule: PromotionRule = {
-  rule_type: "all",
-  status_value: null,
-  category_id: null,
-  brand_id: null,
-  gender_value: null,
-  product_id: null,
-};
-
-/* =========================================================
-   PRODUCT DEFAULTS
-========================================================= */
-
-const blank: EditorProduct = {
-  name: "",
-  brand: "",
-  category: "Bags",
-  brand_id: null,
-  category_id: null,
-  status: "in_stock",
-  gender: "female",
-  price: null,
-  description: "",
-  details: "",
-  delivery_return: "",
-  image_url: "",
-  gallery: [],
-  whatsapp_url: "",
-  instagram_url: "",
-  featured: false,
-};
-
-const blankVariant: VariantEditor = {
-  color_name: "",
-  image_url: "",
-  gallery: [],
-  details: "",
-  price: null,
-};
-
-/* =========================================================
-   DATE HELPERS
-========================================================= */
-
-function toDateTimeLocal(
-  value: string
-): string {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const pad = (number: number) =>
-    String(number).padStart(2, "0");
-
-  return `${date.getFullYear()}-${pad(
-    date.getMonth() + 1
-  )}-${pad(date.getDate())}T${pad(
-    date.getHours()
-  )}:${pad(date.getMinutes())}`;
-}
-
-function dateTimeLocalToISO(
-  value: string
-): string {
-  return new Date(value).toISOString();
-}
-
-function getPromotionStatus(
-  promotion: Promotion
-): PromotionStatus {
-  if (!promotion.is_active) {
-    return "disabled";
-  }
-
-  const now = Date.now();
-
-  const start = new Date(
-    promotion.start_at
-  ).getTime();
-
-  const end = new Date(
-    promotion.end_at
-  ).getTime();
-
-  if (now < start) {
-    return "upcoming";
-  }
-
-  if (now > end) {
-    return "ended";
-  }
-
-  return "active";
-}
-
-function promotionDateLabel(
-  value: string
-): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return date.toLocaleString();
-}
-
-function promotionStatusLabel(
-  status: PromotionStatus
-): string {
-  switch (status) {
-    case "upcoming":
-      return "SCHEDULED";
-
-    case "active":
-      return "ACTIVE NOW";
-
-    case "ended":
-      return "ENDED";
-
-    case "disabled":
-      return "DISABLED";
-
-    default:
-      return "UNKNOWN";
-  }
-}
+import {
+  blankSiteSettings, blankPromotion, blankRule, blank, blankVariant,
+  toDateTimeLocal, dateTimeLocalToISO, getPromotionStatus,
+  promotionDateLabel, promotionStatusLabel,
+} from "./adminDashboardModels";
+import type {
+  Brand, Category, ProductWithRefs, EditorProduct, VariantEditor,
+  PromotionDiscountType, PromotionRuleType, Promotion, PromotionRule,
+  PromotionEditor, SiteSettings, ProductReview,
+  AnalyticsAggregate,
+} from "./adminDashboardModels";
 
 /* =========================================================
    COMPONENT
@@ -509,9 +243,9 @@ export default function AdminDashboard({
   ] = useState(true);
 
   const [
-    analyticsEvents,
-    setAnalyticsEvents,
-  ] = useState<AnalyticsEvent[]>([]);
+    analyticsRows,
+    setAnalyticsRows,
+  ] = useState<AnalyticsAggregate[]>([]);
 
   const [
     analyticsLoading,
@@ -865,7 +599,16 @@ export default function AdminDashboard({
   };
 
   useEffect(() => {
-    load();
+    const timer =
+      window.setTimeout(() => {
+        void load();
+      }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+    // Initial admin bootstrap only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -882,32 +625,15 @@ export default function AdminDashboard({
       setAnalyticsLoading(true);
       setAnalyticsError("");
 
-      const thirtyDaysAgo =
-        new Date(
-          Date.now() -
-            30 *
-              24 *
-              60 *
-              60 *
-              1000
-        ).toISOString();
-
       const {
         data,
         error: analyticsLoadError,
-      } = await supabase()
-        .from("analytics_events")
-        .select(
-          "product_id, event_type, created_at"
-        )
-        .gte(
-          "created_at",
-          thirtyDaysAgo
-        )
-        .order("created_at", {
-          ascending: false,
-        })
-        .limit(5000);
+      } = await supabase().rpc(
+        "get_owner_analytics_summary",
+        {
+          p_days: 30,
+        }
+      );
 
       if (!active) {
         return;
@@ -918,13 +644,13 @@ export default function AdminDashboard({
           "Analytics could not be loaded:",
           analyticsLoadError
         );
-        setAnalyticsEvents([]);
+        setAnalyticsRows([]);
         setAnalyticsError(
           "Business analytics couldn't be loaded right now."
         );
       } else {
-        setAnalyticsEvents(
-          (data as AnalyticsEvent[]) ||
+        setAnalyticsRows(
+          (data as AnalyticsAggregate[]) ||
             []
         );
       }
@@ -1383,15 +1109,28 @@ export default function AdminDashboard({
 
     const client = supabase();
 
-    const ext =
-      file.name
-        .split(".")
-        .pop()
-        ?.toLowerCase() ||
-      "jpg";
+    let optimizedFile: File;
+
+    try {
+      optimizedFile =
+        await optimizeProductImage(
+          file
+        );
+    } catch (optimizationError) {
+      console.error(
+        "Image optimization failed:",
+        optimizationError
+      );
+
+      setError(
+        "The image could not be prepared for upload. Please try another JPG, PNG, or WEBP image."
+      );
+      setUploading(false);
+      return;
+    }
 
     const path =
-      `${crypto.randomUUID()}.${ext}`;
+      `${crypto.randomUUID()}.webp`;
 
     const {
       error: uploadError,
@@ -1399,12 +1138,12 @@ export default function AdminDashboard({
       .from("product-images")
       .upload(
         path,
-        file,
+        optimizedFile,
         {
           cacheControl:
             "31536000",
           contentType:
-            file.type,
+            "image/webp",
           upsert: false,
         }
       );
@@ -1441,84 +1180,294 @@ export default function AdminDashboard({
      VARIANT IMAGE
   ======================================================= */
 
-  async function uploadVariantImage(
+  async function uploadOptimizedToStorage(
     file: File
-  ) {
-    setError("");
-
+  ): Promise<string | null> {
     const validationError =
       validateImageFile(file);
 
     if (validationError) {
-      setError(
-        validationError
-      );
-      return;
+      setError(validationError);
+      return null;
     }
 
-    setVariantUploading(
-      true
-    );
+    let optimizedFile: File;
+
+    try {
+      optimizedFile =
+        await optimizeProductImage(file);
+    } catch (optimizationError) {
+      console.error(
+        "Image optimization failed:",
+        optimizationError
+      );
+      setError(
+        "The image could not be prepared for upload. Please try another JPG, PNG, or WEBP image."
+      );
+      return null;
+    }
 
     const client = supabase();
-
-    const ext =
-      file.name
-        .split(".")
-        .pop()
-        ?.toLowerCase() ||
-      "jpg";
-
     const path =
-      `${crypto.randomUUID()}.${ext}`;
+      `${crypto.randomUUID()}.webp`;
 
-    const {
-      error: uploadError,
-    } = await client.storage
-      .from("product-images")
-      .upload(
-        path,
-        file,
-        {
-          cacheControl:
-            "31536000",
-          contentType:
-            file.type,
-          upsert: false,
-        }
-      );
+    const { error: uploadError } =
+      await client.storage
+        .from("product-images")
+        .upload(
+          path,
+          optimizedFile,
+          {
+            cacheControl:
+              "31536000",
+            contentType:
+              "image/webp",
+            upsert: false,
+          }
+        );
 
     if (uploadError) {
-      setError(
-        uploadError.message
-      );
-      setVariantUploading(
-        false
-      );
-      return;
+      setError(uploadError.message);
+      return null;
     }
 
     const { data } =
       client.storage
         .from("product-images")
-        .getPublicUrl(
-          path
+        .getPublicUrl(path);
+
+    return data.publicUrl;
+  }
+
+  async function uploadVariantImage(
+    file: File
+  ) {
+    setError("");
+    setVariantUploading(true);
+
+    const publicUrl =
+      await uploadOptimizedToStorage(
+        file
+      );
+
+    if (publicUrl) {
+      setVariantEditor((prev) =>
+        prev
+          ? {
+              ...prev,
+              image_url: publicUrl,
+            }
+          : prev
+      );
+    }
+
+    setVariantUploading(false);
+  }
+
+  async function uploadProductGalleryImages(
+    files: File[]
+  ) {
+    if (!editor) {
+      return;
+    }
+
+    const currentGallery =
+      editor.gallery || [];
+
+    const remainingSlots =
+      Math.max(
+        0,
+        7 - currentGallery.length
+      );
+
+    const selectedFiles =
+      files.slice(0, remainingSlots);
+
+    if (selectedFiles.length === 0) {
+      setError(
+        "You can add up to 7 additional product images."
+      );
+      return;
+    }
+
+    setError("");
+    setUploading(true);
+
+    const uploaded: string[] = [];
+
+    for (const file of selectedFiles) {
+      const publicUrl =
+        await uploadOptimizedToStorage(
+          file
         );
 
-    setVariantEditor((prev) =>
-      prev
-        ? {
-          ...prev,
-          image_url:
-            data.publicUrl,
-        }
-        : prev
+      if (publicUrl) {
+        uploaded.push(publicUrl);
+      }
+    }
+
+    if (uploaded.length > 0) {
+      setEditor((prev) =>
+        prev
+          ? {
+              ...prev,
+              gallery: [
+                ...(prev.gallery || []),
+                ...uploaded,
+              ],
+            }
+          : prev
+      );
+    }
+
+    setUploading(false);
+  }
+
+  async function uploadVariantGalleryImages(
+    files: File[]
+  ) {
+    if (!variantEditor) {
+      return;
+    }
+
+    const currentGallery =
+      variantEditor.gallery || [];
+
+    const remainingSlots =
+      Math.max(
+        0,
+        7 - currentGallery.length
+      );
+
+    const selectedFiles =
+      files.slice(0, remainingSlots);
+
+    if (selectedFiles.length === 0) {
+      setError(
+        "You can add up to 7 additional images for this color."
+      );
+      return;
+    }
+
+    setError("");
+    setVariantUploading(true);
+
+    const uploaded: string[] = [];
+
+    for (const file of selectedFiles) {
+      const publicUrl =
+        await uploadOptimizedToStorage(
+          file
+        );
+
+      if (publicUrl) {
+        uploaded.push(publicUrl);
+      }
+    }
+
+    if (uploaded.length > 0) {
+      setVariantEditor((prev) =>
+        prev
+          ? {
+              ...prev,
+              gallery: [
+                ...(prev.gallery || []),
+                ...uploaded,
+              ],
+            }
+          : prev
+      );
+    }
+
+    setVariantUploading(false);
+  }
+
+  function moveGalleryImage(
+    images: string[],
+    fromIndex: number,
+    toIndex: number
+  ) {
+    const next = [...images];
+    const [image] =
+      next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, image);
+    return next;
+  }
+
+  async function removeStoredImages(
+    urls: Array<string | null | undefined>
+  ) {
+    const paths = storagePathsFromUrls(urls);
+
+    if (paths.length === 0) return;
+
+    const { error } = await supabase()
+      .storage
+      .from("product-images")
+      .remove(paths);
+
+    if (error) {
+      console.error(
+        "Old product images could not be removed from storage:",
+        error
+      );
+    }
+  }
+
+  function imageUrlsFromProduct(
+    product: Product | null | undefined
+  ) {
+    if (!product) return [];
+
+    return [
+      product.image_url,
+      ...(product.gallery || []),
+    ];
+  }
+
+  function imageUrlsFromVariant(
+    variant: ProductVariant | null | undefined
+  ) {
+    if (!variant) return [];
+
+    return [
+      variant.image_url,
+      ...(variant.gallery || []),
+    ];
+  }
+
+  function removedImageUrls(
+    before: Array<string | null | undefined>,
+    after: Array<string | null | undefined>
+  ) {
+    const keep = new Set(
+      after.filter((url): url is string => !!url)
     );
 
-    setVariantUploading(
-      false
+    return before.filter(
+      (url): url is string => !!url && !keep.has(url)
     );
   }
+
+  const colorVariantsForStatus =
+    selectedProductId
+      ? variants
+      : pendingVariants;
+
+  const hasColorVariants =
+    colorVariantsForStatus.length > 0;
+
+  const derivedColorStatus: ProductStatus =
+    hasColorVariants &&
+    colorVariantsForStatus.some(
+      (variant) =>
+        variant.is_available
+    )
+      ? "in_stock"
+      : hasColorVariants
+        ? "sold_out"
+        : (editor?.status ||
+          "in_stock");
 
   /* =======================================================
      SAVE PRODUCT
@@ -1622,8 +1571,10 @@ export default function AdminDashboard({
         selectedCategory.id,
 
       status:
-        editor.status ||
-        "in_stock",
+        hasColorVariants
+          ? derivedColorStatus
+          : editor.status ||
+            "in_stock",
 
       gender:
         editor.gender ||
@@ -1665,6 +1616,12 @@ export default function AdminDashboard({
     };
 
     if (editor.id) {
+      const originalProduct =
+        products.find(
+          (product) =>
+            product.id === editor.id
+        );
+
       const result =
         await client
           .from("products")
@@ -1683,6 +1640,13 @@ export default function AdminDashboard({
         setProductSaving(false);
         return;
       }
+
+      await removeStoredImages(
+        removedImageUrls(
+          imageUrlsFromProduct(originalProduct),
+          [payload.image_url, ...(payload.gallery || [])]
+        )
+      );
 
       setEditor(null);
       setProductSaving(false);
@@ -1741,6 +1705,9 @@ export default function AdminDashboard({
             price:
               variant.price ??
               null,
+
+            is_available:
+              variant.is_available,
           })
         );
 
@@ -1916,7 +1883,18 @@ export default function AdminDashboard({
       price:
         variantEditor.price ??
         null,
+
+      is_available:
+        variantEditor.is_available,
     };
+
+    const originalVariant =
+      variantEditor.id
+        ? variants.find(
+            (variant) =>
+              variant.id === variantEditor.id
+          )
+        : null;
 
     const result =
       variantEditor.id
@@ -1945,6 +1923,15 @@ export default function AdminDashboard({
       );
       setVariantSaving(false);
       return;
+    }
+
+    if (originalVariant) {
+      await removeStoredImages(
+        removedImageUrls(
+          imageUrlsFromVariant(originalVariant),
+          [payload.image_url, ...(payload.gallery || [])]
+        )
+      );
     }
 
     setVariantEditor(
@@ -1985,6 +1972,12 @@ export default function AdminDashboard({
       return;
     }
 
+    const variantToDelete =
+      variants.find(
+        (variant) =>
+          variant.id === id
+      );
+
     const { error } =
       await supabase()
         .from(
@@ -2002,6 +1995,10 @@ export default function AdminDashboard({
       );
       return;
     }
+
+    await removeStoredImages(
+      imageUrlsFromVariant(variantToDelete)
+    );
 
     setSuccessMessage(
       "Color deleted successfully."
@@ -2031,8 +2028,31 @@ export default function AdminDashboard({
       return;
     }
 
+    const productToDelete =
+      products.find(
+        (product) =>
+          product.id === id
+      );
+
+    const client = supabase();
+
+    const {
+      data: variantRows,
+      error: variantLoadError,
+    } = await client
+      .from("product_variants")
+      .select("image_url, gallery")
+      .eq("product_id", id);
+
+    if (variantLoadError) {
+      setError(
+        `Product could not be deleted safely because its color images could not be checked: ${variantLoadError.message}`
+      );
+      return;
+    }
+
     const { error } =
-      await supabase()
+      await client
         .from("products")
         .delete()
         .eq("id", id);
@@ -2042,6 +2062,19 @@ export default function AdminDashboard({
         error.message
       );
     } else {
+      const variantImageUrls =
+        (variantRows || []).flatMap(
+          (variant) => [
+            variant.image_url,
+            ...(variant.gallery || []),
+          ]
+        );
+
+      await removeStoredImages([
+        ...imageUrlsFromProduct(productToDelete),
+        ...variantImageUrls,
+      ]);
+
       setSuccessMessage(
         "Product deleted successfully."
       );
@@ -2909,41 +2942,35 @@ export default function AdminDashboard({
       >();
 
       for (
-        const event of
-        analyticsEvents
+        const row of
+        analyticsRows
       ) {
-        const current =
-          byProduct.get(
-            event.product_id
-          ) || {
-            views: 0,
-            whatsapp: 0,
-            instagram: 0,
-          };
+        const productViews =
+          Number(row.views) || 0;
+        const productWhatsapp =
+          Number(
+            row.whatsapp_clicks
+          ) || 0;
+        const productInstagram =
+          Number(
+            row.instagram_clicks
+          ) || 0;
 
-        if (
-          event.event_type ===
-          "product_view"
-        ) {
-          views += 1;
-          current.views += 1;
-        } else if (
-          event.event_type ===
-          "whatsapp_click"
-        ) {
-          whatsappClicks += 1;
-          current.whatsapp += 1;
-        } else if (
-          event.event_type ===
-          "instagram_click"
-        ) {
-          instagramClicks += 1;
-          current.instagram += 1;
-        }
+        views += productViews;
+        whatsappClicks +=
+          productWhatsapp;
+        instagramClicks +=
+          productInstagram;
 
         byProduct.set(
-          event.product_id,
-          current
+          row.product_id,
+          {
+            views: productViews,
+            whatsapp:
+              productWhatsapp,
+            instagram:
+              productInstagram,
+          }
         );
       }
 
@@ -3066,7 +3093,7 @@ export default function AdminDashboard({
           ),
       };
     }, [
-      analyticsEvents,
+      analyticsRows,
       products,
     ]);
 
@@ -3195,13 +3222,13 @@ export default function AdminDashboard({
     <main className="admin-page">
       <header className="admin-header">
         <div>
-          <a
+          <Link
             href="/"
             className="logo"
           >
             Amna&apos;s{" "}
             <span>Edit</span>
-          </a>
+          </Link>
 
           <span className="admin-pill">
             OWNER
@@ -5266,8 +5293,13 @@ export default function AdminDashboard({
 
                   <select
                     value={
-                      editor.status ||
-                      "in_stock"
+                      hasColorVariants
+                        ? derivedColorStatus
+                        : editor.status ||
+                          "in_stock"
+                    }
+                    disabled={
+                      hasColorVariants
                     }
                     onChange={(e) =>
                       setEditor({
@@ -5286,6 +5318,12 @@ export default function AdminDashboard({
                       Sold Out
                     </option>
                   </select>
+
+                  {hasColorVariants && (
+                    <span className="upload-help">
+                      Automatic from color statuses: if any color is In Stock, the product is In Stock. If all colors are Sold Out, the product is Sold Out.
+                    </span>
+                  )}
                 </label>
 
                 <label>
@@ -5348,7 +5386,7 @@ export default function AdminDashboard({
 
               <div className="upload-section">
                 <label>
-                  Main product image
+                  Product cover image
                 </label>
 
                 <div className="upload-row">
@@ -5385,7 +5423,7 @@ export default function AdminDashboard({
                   </label>
 
                   <span className="upload-help">
-                    JPG, PNG, WEBP • max 5MB • 1200×1500 recommended
+                    Used on catalogue cards and as a fallback • automatically optimized to WEBP
                   </span>
                 </div>
 
@@ -5442,6 +5480,130 @@ export default function AdminDashboard({
                     placeholder="https://..."
                   />
                 </details>
+              </div>
+
+
+              <div className="upload-section">
+                <label>
+                  General product gallery
+                </label>
+
+                <div className="upload-row">
+                  <label className="upload-button">
+                    <Upload size={16} />
+                    {uploading
+                      ? "Uploading..."
+                      : "Add gallery images"}
+
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const files =
+                          Array.from(
+                            e.target.files || []
+                          );
+
+                        if (files.length > 0) {
+                          void uploadProductGalleryImages(
+                            files
+                          );
+                        }
+
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+
+                  <span className="upload-help">
+                    For products without colors • if colors are added, upload each color&apos;s images below
+                  </span>
+                </div>
+
+                {(editor.gallery || []).length > 0 && (
+                  <div className="admin-gallery-grid">
+                    {(editor.gallery || []).map(
+                      (image, index) => (
+                        <div
+                          className="admin-gallery-item"
+                          key={`${image}-${index}`}
+                        >
+                          <img
+                            src={image}
+                            alt={`Product gallery ${index + 1}`}
+                            loading="lazy"
+                            decoding="async"
+                          />
+
+                          <div className="admin-gallery-actions">
+                            <button
+                              type="button"
+                              className="icon-btn"
+                              disabled={index === 0}
+                              onClick={() =>
+                                setEditor({
+                                  ...editor,
+                                  gallery: moveGalleryImage(
+                                    editor.gallery || [],
+                                    index,
+                                    index - 1
+                                  ),
+                                })
+                              }
+                              aria-label={`Move image ${index + 1} left`}
+                              title="Move left"
+                            >
+                              ←
+                            </button>
+
+                            <button
+                              type="button"
+                              className="icon-btn"
+                              disabled={
+                                index ===
+                                (editor.gallery || []).length - 1
+                              }
+                              onClick={() =>
+                                setEditor({
+                                  ...editor,
+                                  gallery: moveGalleryImage(
+                                    editor.gallery || [],
+                                    index,
+                                    index + 1
+                                  ),
+                                })
+                              }
+                              aria-label={`Move image ${index + 1} right`}
+                              title="Move right"
+                            >
+                              →
+                            </button>
+
+                            <button
+                              type="button"
+                              className="icon-btn danger"
+                              onClick={() =>
+                                setEditor({
+                                  ...editor,
+                                  gallery: (editor.gallery || []).filter(
+                                    (_, imageIndex) =>
+                                      imageIndex !== index
+                                  ),
+                                })
+                              }
+                              aria-label={`Remove image ${index + 1}`}
+                              title="Remove image"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
               </div>
 
               <label>
@@ -5566,6 +5728,13 @@ export default function AdminDashboard({
 
                 Feature this product
               </label>
+
+              <div className="admin-guidance-note">
+                <strong>Image setup:</strong>{" "}
+                If this product has colors, create every visible color below
+                and give each color its own main image/gallery. The product
+                cover above remains the catalogue/SEO fallback.
+              </div>
 
               <div className="variant-section">
                 <div className="variant-header">
@@ -5795,6 +5964,8 @@ export default function AdminDashboard({
                                         "",
                                       price:
                                         variant.price,
+                                      is_available:
+                                        variant.is_available,
                                     }
                                   )
                                 }
@@ -5938,7 +6109,7 @@ export default function AdminDashboard({
 
               <div className="upload-section">
                 <label>
-                  Color image
+                  Main image for this color
                 </label>
 
                 <div className="upload-row">
@@ -5975,7 +6146,7 @@ export default function AdminDashboard({
                   </label>
 
                   <span className="upload-help">
-                    JPG, PNG, WEBP • max 5MB • 1200×1500 recommended
+                    JPG, PNG, WEBP • max 5MB • automatically optimized to WEBP
                   </span>
                 </div>
 
@@ -6012,6 +6183,127 @@ export default function AdminDashboard({
                 )}
               </div>
 
+
+              <div className="upload-section">
+                <label>
+                  Gallery for this color
+                </label>
+
+                <div className="upload-row">
+                  <label className="upload-button">
+                    <Upload size={16} />
+                    {variantUploading
+                      ? "Uploading..."
+                      : "Add color gallery"}
+
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      disabled={variantUploading}
+                      onChange={(e) => {
+                        const files =
+                          Array.from(
+                            e.target.files || []
+                          );
+
+                        if (files.length > 0) {
+                          void uploadVariantGalleryImages(
+                            files
+                          );
+                        }
+
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+
+                  <span className="upload-help">
+                    Up to 7 additional images for this color • automatically optimized
+                  </span>
+                </div>
+
+                {variantEditor.gallery.length > 0 && (
+                  <div className="admin-gallery-grid">
+                    {variantEditor.gallery.map(
+                      (image, index) => (
+                        <div
+                          className="admin-gallery-item"
+                          key={`${image}-${index}`}
+                        >
+                          <img
+                            src={image}
+                            alt={`${variantEditor.color_name || "Color"} image ${index + 1}`}
+                            loading="lazy"
+                            decoding="async"
+                          />
+
+                          <div className="admin-gallery-actions">
+                            <button
+                              type="button"
+                              className="icon-btn"
+                              disabled={index === 0}
+                              onClick={() =>
+                                setVariantEditor({
+                                  ...variantEditor,
+                                  gallery: moveGalleryImage(
+                                    variantEditor.gallery,
+                                    index,
+                                    index - 1
+                                  ),
+                                })
+                              }
+                              aria-label={`Move color image ${index + 1} left`}
+                            >
+                              ←
+                            </button>
+
+                            <button
+                              type="button"
+                              className="icon-btn"
+                              disabled={
+                                index ===
+                                variantEditor.gallery.length - 1
+                              }
+                              onClick={() =>
+                                setVariantEditor({
+                                  ...variantEditor,
+                                  gallery: moveGalleryImage(
+                                    variantEditor.gallery,
+                                    index,
+                                    index + 1
+                                  ),
+                                })
+                              }
+                              aria-label={`Move color image ${index + 1} right`}
+                            >
+                              →
+                            </button>
+
+                            <button
+                              type="button"
+                              className="icon-btn danger"
+                              onClick={() =>
+                                setVariantEditor({
+                                  ...variantEditor,
+                                  gallery: variantEditor.gallery.filter(
+                                    (_, imageIndex) =>
+                                      imageIndex !== index
+                                  ),
+                                })
+                              }
+                              aria-label={`Remove color image ${index + 1}`}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+
               <label>
                 Price (optional)
 
@@ -6036,6 +6328,34 @@ export default function AdminDashboard({
                   }
                   placeholder="Leave empty to use main product price"
                 />
+              </label>
+
+              <label>
+                Color status
+
+                <select
+                  value={
+                    variantEditor.is_available
+                      ? "in_stock"
+                      : "sold_out"
+                  }
+                  onChange={(e) =>
+                    setVariantEditor({
+                      ...variantEditor,
+                      is_available:
+                        e.target.value ===
+                        "in_stock",
+                    })
+                  }
+                >
+                  <option value="in_stock">
+                    In Stock
+                  </option>
+
+                  <option value="sold_out">
+                    Sold Out
+                  </option>
+                </select>
               </label>
 
               <label>

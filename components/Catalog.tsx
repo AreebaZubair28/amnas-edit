@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   useEffect,
   useMemo,
@@ -16,6 +18,9 @@ import {
 
 import { supabase } from "@/lib/supabase";
 import ProductModal from "@/components/ProductModal";
+import StorefrontImage from "@/components/StorefrontImage";
+import ProductGridSkeleton from "@/components/ProductGridSkeleton";
+import { usePromotionClock } from "@/hooks/usePromotionClock";
 
 import {
   Product,
@@ -111,7 +116,7 @@ function searchWords(
 function normalizeWord(
   word: string
 ): string {
-  let value = word.toLowerCase();
+  const value = word.toLowerCase();
 
   if (
     value.endsWith("ies") &&
@@ -665,7 +670,11 @@ function ProductCard({
 
   return (
     <article
-      className="product-card"
+      className={`product-card${
+        product.status === "sold_out"
+          ? " product-card-sold-out"
+          : ""
+      }`}
       role="button"
       tabIndex={0}
       aria-label={`View ${product.name}`}
@@ -684,14 +693,13 @@ function ProductCard({
     >
       <div className="product-image-wrap">
         {product.image_url ? (
-          <img
-            src={
-              product.image_url
-            }
+          <StorefrontImage
+            src={product.image_url}
             alt={product.name}
+            width={900}
+            height={1125}
             className="product-image"
-            loading="lazy"
-            decoding="async"
+            sizes="(max-width: 650px) 92vw, (max-width: 1000px) 46vw, 30vw"
           />
         ) : (
           <div className="image-placeholder">
@@ -866,6 +874,11 @@ export default function Catalog() {
   ] = useState("All");
 
   const [
+    sortBy,
+    setSortBy,
+  ] = useState("newest");
+
+  const [
     open,
     setOpen,
   ] = useState<Product | null>(
@@ -883,29 +896,15 @@ export default function Catalog() {
   ] = useState("");
 
   /*
-   * A ticking clock, independent of data
-   * loading. Re-running this on an interval
-   * (rather than only once on mount) is what
-   * lets a sale switch on/off at its exact
-   * start_at / end_at without the page being
-   * refreshed or rebuilt.
+   * Promotion timing is event-driven instead of using
+   * a permanent 1-second interval. The shared hook
+   * schedules a single update for the next promotion
+   * start/end boundary.
    */
-  const [
-    now,
-    setNow,
-  ] = useState(() =>
-    Date.now()
-  );
-
-  useEffect(() => {
-    const interval =
-      setInterval(() => {
-        setNow(Date.now());
-      }, 1000);
-
-    return () =>
-      clearInterval(interval);
-  }, []);
+  const now =
+    usePromotionClock(
+      promotions
+    );
 
   /*
    * Load products and all promotions,
@@ -1205,6 +1204,72 @@ export default function Catalog() {
       }
     );
 
+
+  const sortedProducts =
+    [...filtered].sort(
+      (a, b) => {
+        switch (sortBy) {
+          case "price_low":
+            return (
+              (a.price ?? Number.MAX_SAFE_INTEGER) -
+              (b.price ?? Number.MAX_SAFE_INTEGER)
+            );
+
+          case "price_high":
+            return (
+              (b.price ?? -1) -
+              (a.price ?? -1)
+            );
+
+          case "in_stock_first":
+            if (a.status === b.status) {
+              return 0;
+            }
+
+            return a.status === "in_stock"
+              ? -1
+              : 1;
+
+          case "newest":
+          default:
+            return (
+              new Date(b.created_at).getTime() -
+              new Date(a.created_at).getTime()
+            );
+        }
+      }
+    );
+
+  const hasActiveFilters =
+    query.trim() !== "" ||
+    status !== "All" ||
+    category !== "All" ||
+    brand !== "All" ||
+    gender !== "All" ||
+    priceRange !== "All";
+
+  function clearFilters() {
+    setQuery("");
+    setStatus("All");
+    setCategory("All");
+    setBrand("All");
+    setGender("All");
+    setPriceRange("All");
+  }
+
+  const priceRangeLabel =
+    priceRange === "under_25000"
+      ? "Under Rs. 25,000"
+      : priceRange === "25000_35000"
+        ? "Rs. 25,000–35,000"
+        : priceRange === "35000_50000"
+          ? "Rs. 35,000–50,000"
+          : priceRange === "50000_100000"
+            ? "Rs. 50,000–100,000"
+            : priceRange === "above_100000"
+              ? "Above Rs. 100,000"
+              : "";
+
   /*
    * Promotions that are actually live right now,
    * i.e. is_active and within [start_at, end_at].
@@ -1250,9 +1315,15 @@ export default function Catalog() {
       : null;
 
   const footerWhatsAppUrl =
-    siteContacts.whatsapp_number
+    siteContacts.whatsapp_number.trim()
       ? `https://wa.me/${siteContacts.whatsapp_number.replace(/\D/g, "")}`
-      : "#";
+      : null;
+
+  const footerInstagramUrl =
+    siteContacts.instagram_url.trim() || null;
+
+  const footerTikTokUrl =
+    siteContacts.tiktok_url.trim() || null;
 
   return (
     <main>
@@ -1322,33 +1393,27 @@ export default function Catalog() {
         )}
 
       <header className="site-header">
-        <a
+        <Link
           href="/"
           className="logo"
         >
           Amna&apos;s{" "}
           <span>Edit</span>
-        </a>
+        </Link>
 
         <nav aria-label="Primary navigation">
-          <a href="/">
+          <Link href="/">
             Home
-          </a>
+          </Link>
 
-          <a href="/collection">
+          <Link href="/collection">
             Collection
-          </a>
+          </Link>
 
-          <a href="/#about" className="desktop-secondary">
+          <Link href="/#about" className="desktop-secondary">
             About
-          </a>
+          </Link>
 
-          <a
-            href="/admin"
-            className="admin-link desktop-secondary"
-          >
-            Owner Login
-          </a>
         </nav>
       </header>
 
@@ -1408,7 +1473,7 @@ export default function Catalog() {
               }
             >
               <option value="All">
-                All Status
+                All statuses
               </option>
 
               <option value="in_stock">
@@ -1437,8 +1502,11 @@ export default function Catalog() {
                 (c) => (
                   <option
                     key={c}
+                    value={c}
                   >
-                    {c}
+                    {c === "All"
+                      ? "All categories"
+                      : c}
                   </option>
                 )
               )}
@@ -1459,8 +1527,11 @@ export default function Catalog() {
                 (b) => (
                   <option
                     key={b}
+                    value={b}
                   >
-                    {b}
+                    {b === "All"
+                      ? "All brands"
+                      : b}
                   </option>
                 )
               )}
@@ -1478,7 +1549,7 @@ export default function Catalog() {
               }
             >
               <option value="All">
-                All
+                All audiences
               </option>
 
               <option value="female">
@@ -1508,7 +1579,7 @@ export default function Catalog() {
               }
             >
               <option value="All">
-                All Prices
+                All prices
               </option>
 
               <option value="under_25000">
@@ -1532,7 +1603,131 @@ export default function Catalog() {
               </option>
             </select>
           </div>
+
+          <div className="select-wrap sort-wrap">
+            <select
+              aria-label="Sort products"
+              value={sortBy}
+              onChange={(e) =>
+                setSortBy(
+                  e.target.value
+                )
+              }
+            >
+              <option value="newest">
+                Sort: Newest
+              </option>
+
+              <option value="price_low">
+                Price: Low to high
+              </option>
+
+              <option value="price_high">
+                Price: High to low
+              </option>
+
+              <option value="in_stock_first">
+                In Stock first
+              </option>
+            </select>
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="clear-filters-button"
+              onClick={clearFilters}
+            >
+              Clear filters
+            </button>
+          )}
         </div>
+
+        {hasActiveFilters && (
+          <div
+            className="active-filter-row"
+            aria-label="Active filters"
+          >
+            {query.trim() && (
+              <button
+                type="button"
+                className="filter-chip"
+                onClick={() =>
+                  setQuery("")
+                }
+              >
+                Search: {query.trim()} ×
+              </button>
+            )}
+
+            {status !== "All" && (
+              <button
+                type="button"
+                className="filter-chip"
+                onClick={() =>
+                  setStatus("All")
+                }
+              >
+                {STATUS_LABELS[
+                  status as Product["status"]
+                ]} ×
+              </button>
+            )}
+
+            {category !== "All" && (
+              <button
+                type="button"
+                className="filter-chip"
+                onClick={() =>
+                  setCategory("All")
+                }
+              >
+                Category: {category} ×
+              </button>
+            )}
+
+            {brand !== "All" && (
+              <button
+                type="button"
+                className="filter-chip"
+                onClick={() =>
+                  setBrand("All")
+                }
+              >
+                Brand: {brand} ×
+              </button>
+            )}
+
+            {gender !== "All" && (
+              <button
+                type="button"
+                className="filter-chip"
+                onClick={() =>
+                  setGender("All")
+                }
+              >
+                {gender === "female"
+                  ? "Women"
+                  : gender === "male"
+                    ? "Men"
+                    : "Unisex"}{" "}
+                ×
+              </button>
+            )}
+
+            {priceRange !== "All" && (
+              <button
+                type="button"
+                className="filter-chip"
+                onClick={() =>
+                  setPriceRange("All")
+                }
+              >
+                {priceRangeLabel} ×
+              </button>
+            )}
+          </div>
+        )}
 
         {loadError && !loading ? (
           <div className="load-error-card" role="alert">
@@ -1546,13 +1741,9 @@ export default function Catalog() {
             </button>
           </div>
         ) : loading ? (
-          <div
-            className="empty"
-            role="status"
-            aria-live="polite"
-          >
-            Loading the edit...
-          </div>
+          <ProductGridSkeleton
+            count={8}
+          />
         ) : filtered.length ===
           0 ? (
           <div
@@ -1564,7 +1755,7 @@ export default function Catalog() {
           </div>
         ) : (
           <div className="product-grid">
-            {filtered.map(
+            {sortedProducts.map(
               (p) => (
                 <ProductCard
                   key={p.id}
@@ -1593,39 +1784,53 @@ export default function Catalog() {
         </p>
 
         <div className="footer-links">
-          <a
+          <Link
             href="/policies"
             aria-label="Policies"
           >
             Policies
-          </a>
+          </Link>
 
-          <a
-            href={siteContacts.instagram_url || "#"}
-            target={siteContacts.instagram_url ? "_blank" : undefined}
-            rel={siteContacts.instagram_url ? "noreferrer" : undefined}
-            aria-label="Instagram"
+          <Link
+            href="/admin"
+            className="footer-owner-link"
+            aria-label="Owner access"
           >
-            <Instagram size={18} />
-          </a>
+            Owner
+          </Link>
 
-          <a
-            href={footerWhatsAppUrl}
-            target={siteContacts.whatsapp_number ? "_blank" : undefined}
-            rel={siteContacts.whatsapp_number ? "noreferrer" : undefined}
-            aria-label="WhatsApp"
-          >
-            <MessageCircle size={18} />
-          </a>
+          {footerInstagramUrl && (
+            <a
+              href={footerInstagramUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Instagram"
+            >
+              <Instagram size={18} />
+            </a>
+          )}
 
-          <a
-            href={siteContacts.tiktok_url || "#"}
-            target={siteContacts.tiktok_url ? "_blank" : undefined}
-            rel={siteContacts.tiktok_url ? "noreferrer" : undefined}
-            aria-label="TikTok"
-          >
-            <Music2 size={18} />
-          </a>
+          {footerWhatsAppUrl && (
+            <a
+              href={footerWhatsAppUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="WhatsApp"
+            >
+              <MessageCircle size={18} />
+            </a>
+          )}
+
+          {footerTikTokUrl && (
+            <a
+              href={footerTikTokUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="TikTok"
+            >
+              <Music2 size={18} />
+            </a>
+          )}
         </div>
       </footer>
 

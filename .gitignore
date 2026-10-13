@@ -9,3 +9,8 @@ out/
 
 .DS_Store
 Thumbs.db
+
+# Local test reports and TypeScript incremental cache
+playwright-report/
+test-results/
+*.tsbuildinfo

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useMemo, useState } from "react";
 import {
     Instagram,
@@ -11,6 +13,9 @@ import {
 
 import { supabase } from "@/lib/supabase";
 import ProductModal from "@/components/ProductModal";
+import StorefrontImage from "@/components/StorefrontImage";
+import ProductGridSkeleton from "@/components/ProductGridSkeleton";
+import { usePromotionClock } from "@/hooks/usePromotionClock";
 import {
     Product,
     STATUS_LABELS,
@@ -125,11 +130,11 @@ function isPromotionActive(
 
 function makeWhatsAppUrl(
     number: string
-): string {
+): string | null {
     const clean = number.replace(/\D/g, "");
 
     if (!clean) {
-        return "#";
+        return null;
     }
 
     return `https://wa.me/${clean}`;
@@ -137,11 +142,11 @@ function makeWhatsAppUrl(
 
 function makeInstagramUrl(
     value: string
-): string {
+): string | null {
     const trimmed = value.trim();
 
     if (!trimmed) {
-        return "#";
+        return null;
     }
 
     if (
@@ -178,7 +183,11 @@ function ProductPreview({
     return (
         <button
             type="button"
-            className="home-product-card"
+            className={`home-product-card${
+                product.status === "sold_out"
+                    ? " home-product-card-sold-out"
+                    : ""
+            }`}
             aria-label={`View ${product.name}`}
             onClick={() => onOpen(product)}
             style={{
@@ -193,11 +202,12 @@ function ProductPreview({
         >
             <div className="home-product-image">
                 {product.image_url ? (
-                    <img
+                    <StorefrontImage
                         src={product.image_url}
                         alt={product.name}
-                        loading="lazy"
-                        decoding="async"
+                        width={900}
+                        height={1125}
+                        sizes="(max-width: 700px) 82vw, (max-width: 1100px) 42vw, 28vw"
                     />
                 ) : (
                     <div className="image-placeholder">
@@ -434,19 +444,11 @@ export default function HomePage() {
     const [loadError, setLoadError] =
         useState("");
 
-    const [now, setNow] =
-        useState(Date.now());
+    const now =
+        usePromotionClock(promotions);
 
     const [open, setOpen] =
         useState<Product | null>(null);
-
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setNow(Date.now());
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, []);
 
     useEffect(() => {
         async function loadHomeData() {
@@ -656,18 +658,32 @@ export default function HomePage() {
         );
 
     const tiktokUrl =
-        siteSettings.tiktok_url || "#";
+        siteSettings.tiktok_url.trim() || null;
 
     if (loading) {
         return (
             <main className="home-page">
-                <div
-                    className="empty"
-                    role="status"
-                    aria-live="polite"
-                >
-                    Loading Amna&apos;s Edit...
-                </div>
+                <section className="home-loading-shell">
+                    <div className="hero-skeleton">
+                        <div className="hero-skeleton-copy" aria-hidden="true">
+                            <span className="skeleton-line skeleton-line-short skeleton-shimmer" />
+                            <span className="skeleton-line skeleton-line-hero skeleton-shimmer" />
+                            <span className="skeleton-line skeleton-line-body skeleton-shimmer" />
+                            <span className="skeleton-line skeleton-line-body skeleton-shimmer" />
+                            <span className="skeleton-button skeleton-shimmer" />
+                        </div>
+
+                        <div
+                            className="hero-skeleton-image skeleton-shimmer"
+                            aria-hidden="true"
+                        />
+                    </div>
+
+                    <ProductGridSkeleton
+                        count={4}
+                        showHeading
+                    />
+                </section>
             </main>
         );
     }
@@ -728,33 +744,27 @@ export default function HomePage() {
       ===================================================== */}
 
             <header className="site-header">
-                <a
+                <Link
                     href="/"
                     className="logo"
                 >
                     Amna&apos;s{" "}
                     <span>Edit</span>
-                </a>
+                </Link>
 
                 <nav aria-label="Primary navigation">
-                    <a href="/">
+                    <Link href="/">
                         Home
-                    </a>
+                    </Link>
 
-                    <a href="/collection">
+                    <Link href="/collection">
                         Collection
-                    </a>
+                    </Link>
 
                     <a href="#about" className="desktop-secondary">
                         About
                     </a>
 
-                    <a
-                        href="/admin"
-                        className="admin-link desktop-secondary"
-                    >
-                        Owner Login
-                    </a>
                 </nav>
             </header>
 
@@ -785,13 +795,13 @@ export default function HomePage() {
                     </p>
 
                     <div className="home-hero-actions">
-                        <a
+                        <Link
                             href="/collection"
                             className="button primary"
                         >
                             Explore Collection
                             <ArrowRight size={16} />
-                        </a>
+                        </Link>
 
                         <a
                             href="#new-arrivals"
@@ -804,12 +814,13 @@ export default function HomePage() {
 
                 <div className="home-hero-image">
                     {heroProduct?.image_url ? (
-                        <img
+                        <StorefrontImage
                             src={heroProduct.image_url}
                             alt={heroProduct.name}
-                            loading="eager"
-                            decoding="async"
-                            fetchPriority="high"
+                            width={1200}
+                            height={1500}
+                            sizes="(max-width: 850px) 100vw, 50vw"
+                            priority
                         />
                     ) : (
                         <div className="home-hero-placeholder">
@@ -851,13 +862,13 @@ export default function HomePage() {
                         </h2>
                     </div>
 
-                    <a
+                    <Link
                         href="/collection"
                         className="home-section-link"
                     >
                         View all
                         <ArrowRight size={15} />
-                    </a>
+                    </Link>
                 </div>
 
                 {newArrivals.length > 0 ? (
@@ -1006,13 +1017,13 @@ export default function HomePage() {
                                 "Amna's Edit brings together carefully selected pieces with a focus on style, quality, and personal service."}
                         </p>
 
-                        <a
+                        <Link
                             href="/collection"
                             className="button secondary"
                         >
                             Discover the Edit
                             <ArrowRight size={16} />
-                        </a>
+                        </Link>
                     </div>
                 </div>
             </section>
@@ -1113,31 +1124,33 @@ export default function HomePage() {
                         and product details.
                     </p>
 
-                    <div className="home-contact-actions">
-                        <a
-                            href={whatsappUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="button primary"
-                        >
-                            <MessageCircle
-                                size={17}
-                            />
-                            WhatsApp Us
-                        </a>
+                    {(whatsappUrl || instagramUrl) && (
+                        <div className="home-contact-actions">
+                            {whatsappUrl && (
+                                <a
+                                    href={whatsappUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="button primary"
+                                >
+                                    <MessageCircle size={17} />
+                                    WhatsApp Us
+                                </a>
+                            )}
 
-                        <a
-                            href={instagramUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="button secondary"
-                        >
-                            <Instagram
-                                size={17}
-                            />
-                            Instagram
-                        </a>
-                    </div>
+                            {instagramUrl && (
+                                <a
+                                    href={instagramUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="button secondary"
+                                >
+                                    <Instagram size={17} />
+                                    Instagram
+                                </a>
+                            )}
+                        </div>
+                    )}
                 </div>
             </section>
 
@@ -1157,41 +1170,53 @@ export default function HomePage() {
                 </p>
 
                 <div className="footer-links">
-                    <a
+                    <Link
                         href="/policies"
                         aria-label="Policies"
                     >
                         Policies
-                    </a>
+                    </Link>
 
-                    <a
-                        href={instagramUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label="Instagram"
+                    <Link
+                        href="/admin"
+                        className="footer-owner-link"
+                        aria-label="Owner access"
                     >
-                        <Instagram size={18} />
-                    </a>
+                        Owner
+                    </Link>
 
-                    <a
-                        href={whatsappUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label="WhatsApp"
-                    >
-                        <MessageCircle
-                            size={18}
-                        />
-                    </a>
+                    {instagramUrl && (
+                        <a
+                            href={instagramUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label="Instagram"
+                        >
+                            <Instagram size={18} />
+                        </a>
+                    )}
 
-                    <a
-                        href={tiktokUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label="TikTok"
-                    >
-                        <Music2 size={18} />
-                    </a>
+                    {whatsappUrl && (
+                        <a
+                            href={whatsappUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label="WhatsApp"
+                        >
+                            <MessageCircle size={18} />
+                        </a>
+                    )}
+
+                    {tiktokUrl && (
+                        <a
+                            href={tiktokUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label="TikTok"
+                        >
+                            <Music2 size={18} />
+                        </a>
+                    )}
                 </div>
             </footer>
 

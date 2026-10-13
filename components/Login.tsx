@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -18,52 +19,41 @@ export default function Login() {
     setError("");
     setBusy(true);
 
-    const client = supabase();
+    const { error } =
+      await supabase().auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    const {
-      data: authData,
-      error: authError,
-    } = await client.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (authError || !authData.user) {
-      setError(
-        authError?.message ||
-          "Unable to sign in. Please try again."
+    if (error) {
+      setError(error.message);
+    } else {
+      /*
+       * Mark this browser tab as having completed
+       * the owner login. sessionStorage is cleared
+       * when the tab/window is closed, which means
+       * opening the site again requires login.
+       *
+       * A normal page refresh keeps the marker,
+       * so refreshing /admin does not log the owner out.
+       */
+      sessionStorage.setItem(
+        "amnas-edit-owner-session",
+        "authenticated"
       );
-      setBusy(false);
-      return;
+
+      router.push("/admin");
     }
 
-    const {
-      data: isOwner,
-      error: ownerError,
-    } = await client.rpc("is_owner");
-
-    if (
-      ownerError ||
-      isOwner !== true
-    ) {
-      await client.auth.signOut();
-      setError(
-        "This account is not authorized for owner access."
-      );
-      setBusy(false);
-      return;
-    }
-
-    router.replace("/admin");
     setBusy(false);
   }
 
   return (
     <main className="auth-page">
       <div className="auth-card">
-        <a href="/" className="logo">
+        <Link href="/" className="logo">
           Amna&apos;s <span>Edit</span>
-        </a>
+        </Link>
 
         <div className="auth-icon">
           <LockKeyhole size={22} />
@@ -87,7 +77,6 @@ export default function Login() {
 
             <input
               type="email"
-              autoComplete="email"
               required
               value={email}
               onChange={(e) =>
@@ -101,7 +90,6 @@ export default function Login() {
 
             <input
               type="password"
-              autoComplete="current-password"
               required
               value={password}
               onChange={(e) =>
@@ -111,19 +99,14 @@ export default function Login() {
           </label>
 
           {error && (
-            <div
-              className="error"
-              role="alert"
-            >
+            <div className="error">
               {error}
             </div>
           )}
 
           <button
-            type="submit"
             className="button primary full"
             disabled={busy}
-            aria-busy={busy}
           >
             {busy
               ? "Signing in..."
@@ -131,12 +114,12 @@ export default function Login() {
           </button>
         </form>
 
-        <a
+        <Link
           href="/"
           className="back-link"
         >
           ← Back to catalogue
-        </a>
+        </Link>
       </div>
     </main>
   );

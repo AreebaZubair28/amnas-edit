@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import StorefrontImage from "@/components/StorefrontImage";
 
 import {
   Product,
@@ -98,7 +99,7 @@ function makeWhatsApp(
   originalPrice: number | null,
   displayPrice: number | null,
   promotion: PromotionWithRules | null
-) {
+): string | null {
   /*
    * Website Settings remains the global source of truth
    * for WhatsApp inquiries. The message includes enough
@@ -150,17 +151,33 @@ function makeWhatsApp(
     displayPrice !== null &&
     displayPrice < originalPrice;
 
+  const selectedColorSoldOut =
+    selectedVariant?.is_available === false;
+
+  const isSoldOut =
+    product.status === "sold_out" ||
+    selectedColorSoldOut;
+
   const textLines = [
-    "Hi Amna's Edit! I'm interested in this item:",
+    isSoldOut
+      ? "Hi Amna's Edit! I'd like to know if this item or selected color will be restocked:"
+      : "Hi Amna's Edit! I'm interested in this item:",
     "",
     `Product: ${product.name}`,
     ...(product.brand
       ? [`Brand: ${product.brand}`]
       : []),
-    ...(selectedVariant
-      ? [`Color: ${selectedVariant.color_name}`]
-      : []),
     `Status: ${STATUS_LABELS[product.status]}`,
+    ...(selectedVariant
+      ? [
+          `Color: ${selectedVariant.color_name}`,
+          `Color availability: ${
+            selectedVariant.is_available
+              ? "Available"
+              : "Sold Out"
+          }`,
+        ]
+      : []),
     ...(displayPriceLabel
       ? [
           `Price: ${displayPriceLabel}${
@@ -194,10 +211,10 @@ function makeWhatsApp(
     )}`;
   }
 
-  return (
-    product.whatsapp_url ||
-    "#"
-  );
+  const productFallback =
+    product.whatsapp_url?.trim() || "";
+
+  return productFallback || null;
 }
 
 function calculateDiscountedPrice(
@@ -241,11 +258,11 @@ function formatPromotionDiscount(
 
 function makeInstagramChatUrl(
   instagramUrl: string
-): string {
+): string | null {
   const value = instagramUrl.trim();
 
   if (!value) {
-    return "#";
+    return null;
   }
 
   if (value.includes("ig.me/")) {
@@ -272,10 +289,10 @@ function makeInstagramChatUrl(
       return `https://ig.me/m/${username}`;
     }
   } catch {
-    return "#";
+    return null;
   }
 
-  return "#";
+  return null;
 }
 
 function getRecommendedProducts(
@@ -406,6 +423,11 @@ export default function ProductModal({
     useState<ProductVariant | null>(
       null
     );
+
+  const [
+    selectedGalleryImage,
+    setSelectedGalleryImage,
+  ] = useState<string | null>(null);
 
   const [
     loadingVariants,
@@ -558,7 +580,7 @@ export default function ProductModal({
         previousOverflow;
       previousActiveElement?.focus();
     };
-  }, [product.id, pageMode]);
+  }, [product.id, pageMode, close]);
 
   useEffect(() => {
     let active = true;
@@ -602,11 +624,22 @@ export default function ProductModal({
         setVariants(loaded);
 
         /*
-         * Keep the main product selected when the modal opens.
-         * A customer must explicitly choose a color before the
-         * variant image, price, and color-specific details appear.
+         * If this product has color variants, the detailed view
+         * should always represent a real color rather than showing
+         * the product-level cover image as an unnamed color.
+         *
+         * The first saved color becomes the default selection.
+         * Products without color variants continue using their
+         * normal product-level image and gallery.
          */
-        setSelectedVariant(null);
+        setSelectedVariant(
+          loaded.find(
+            (variant) =>
+              variant.is_available
+          ) ||
+            loaded[0] ||
+            null
+        );
       }
 
       setLoadingVariants(false);
@@ -793,9 +826,30 @@ export default function ProductModal({
       ) / reviews.length
       : 0;
 
+  const galleryImages = Array.from(
+    new Set(
+      [
+        selectedVariant?.image_url ||
+          product.image_url,
+        ...(
+          selectedVariant
+            ? selectedVariant.gallery || []
+            : product.gallery || []
+        ),
+      ].filter(
+        (image): image is string =>
+          !!image?.trim()
+      )
+    )
+  );
+
   const displayImage =
-    selectedVariant?.image_url ||
-    product.image_url;
+    selectedGalleryImage &&
+    galleryImages.includes(
+      selectedGalleryImage
+    )
+      ? selectedGalleryImage
+      : galleryImages[0] || null;
 
   const originalPrice =
     selectedVariant?.price ??
@@ -815,6 +869,18 @@ export default function ProductModal({
     selectedVariant?.details ||
     product.details ||
     "";
+
+  const selectedVariantSoldOut =
+    selectedVariant?.is_available === false;
+
+  const currentSelectionSoldOut =
+    product.status === "sold_out" ||
+    selectedVariantSoldOut;
+
+  const displayedStatus =
+    currentSelectionSoldOut
+      ? "sold_out"
+      : "in_stock";
 
   const wa =
     makeWhatsApp(
@@ -955,20 +1021,68 @@ export default function ProductModal({
 
         <div className="modal-media">
           {displayImage ? (
-            <div className="modal-main-image">
-              <img
-                src={
-                  displayImage
-                }
-                alt={
-                  selectedVariant
-                    ? `${product.name} - ${selectedVariant.color_name}`
-                    : product.name
-                }
-                loading="eager"
-                decoding="async"
-              />
-            </div>
+            <>
+              <div className="modal-main-image">
+                <StorefrontImage
+                  src={displayImage}
+                  alt={
+                    selectedVariant
+                      ? `${product.name} - ${selectedVariant.color_name}`
+                      : product.name
+                  }
+                  width={1200}
+                  height={1500}
+                  sizes="(max-width: 900px) 100vw, 50vw"
+                  priority
+                />
+              </div>
+
+              {galleryImages.length > 1 && (
+                <div
+                  className="product-gallery-thumbnails"
+                  aria-label={`Images for ${
+                    selectedVariant
+                      ? `${product.name}, ${selectedVariant.color_name}`
+                      : product.name
+                  }`}
+                >
+                  {galleryImages.map(
+                    (image, index) => (
+                      <button
+                        key={`${image}-${index}`}
+                        type="button"
+                        className={`product-gallery-thumbnail${
+                          displayImage === image
+                            ? " active"
+                            : ""
+                        }`}
+                        onClick={() =>
+                          setSelectedGalleryImage(
+                            image
+                          )
+                        }
+                        aria-label={`Show image ${
+                          index + 1
+                        } of ${
+                          galleryImages.length
+                        }`}
+                        aria-pressed={
+                          displayImage === image
+                        }
+                      >
+                        <StorefrontImage
+                          src={image}
+                          alt=""
+                          width={148}
+                          height={176}
+                          sizes="74px"
+                        />
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
+            </>
           ) : (
             <div className="modal-main-image">
               <div className="image-placeholder large">
@@ -982,11 +1096,11 @@ export default function ProductModal({
 
         <div className="modal-details">
           <span
-            className={`status-badge ${STATUS_CLASS[product.status]}`}
+            className={`status-badge ${STATUS_CLASS[displayedStatus]}`}
           >
             {
               STATUS_LABELS[
-              product.status
+                displayedStatus
               ]
             }
           </span>
@@ -1031,6 +1145,15 @@ export default function ProductModal({
           >
             {product.name}
           </ProductTitleTag>
+
+          {currentSelectionSoldOut && (
+            <p className="sold-out-note">
+              {selectedVariantSoldOut &&
+              product.status !== "sold_out"
+                ? `${selectedVariant?.color_name} is currently sold out. You can still ask us about restock availability.`
+                : "This piece is currently sold out. You can still ask us about restock availability."}
+            </p>
+          )}
 
           {originalPrice !==
             null && (
@@ -1143,25 +1266,37 @@ export default function ProductModal({
                             variant
                           )
                         }
-                        title={
-                          variant.color_name
+                        style={
+                          !variant.is_available
+                            ? {
+                                opacity: 0.5,
+                                filter:
+                                  "grayscale(0.55)",
+                              }
+                            : undefined
                         }
-                        aria-label={`Select ${variant.color_name}`}
+                        title={`${variant.color_name}${
+                          variant.is_available
+                            ? ""
+                            : " — Sold Out"
+                        }`}
+                        aria-label={`Select ${variant.color_name}${
+                          variant.is_available
+                            ? ""
+                            : ", sold out"
+                        }`}
                         aria-pressed={
                           selectedVariant?.id ===
                           variant.id
                         }
                       >
                         {variant.image_url ? (
-                          <img
-                            src={
-                              variant.image_url
-                            }
-                            alt={
-                              variant.color_name
-                            }
-                            loading="lazy"
-                            decoding="async"
+                          <StorefrontImage
+                            src={variant.image_url}
+                            alt={variant.color_name}
+                            width={120}
+                            height={120}
+                            sizes="60px"
                           />
                         ) : (
                           <span>
@@ -1236,45 +1371,52 @@ export default function ProductModal({
             </div>
           )}
 
-          <div className="modal-actions">
-            <a
-              href={wa}
-              target="_blank"
-              rel="noreferrer"
-              className="button primary"
-              onClick={() => {
-                void recordAnalyticsEvent(
-                  product.id,
-                  "whatsapp_click"
-                );
-              }}
-            >
-              <MessageCircle
-                size={17}
-              />
+          {(wa || ig) ? (
+            <div className="modal-actions">
+              {wa && (
+                <a
+                  href={wa}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="button primary"
+                  onClick={() => {
+                    void recordAnalyticsEvent(
+                      product.id,
+                      "whatsapp_click"
+                    );
+                  }}
+                >
+                  <MessageCircle size={17} />
 
-              Inquire on WhatsApp
-            </a>
+                  {currentSelectionSoldOut
+                    ? "Ask about restock"
+                    : "Inquire on WhatsApp"}
+                </a>
+              )}
 
-            <a
-              href={ig}
-              target="_blank"
-              rel="noreferrer"
-              className="button secondary"
-              onClick={() => {
-                void recordAnalyticsEvent(
-                  product.id,
-                  "instagram_click"
-                );
-              }}
-            >
-              <Instagram
-                size={17}
-              />
-
-              DM on Instagram
-            </a>
-          </div>
+              {ig && (
+                <a
+                  href={ig}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="button secondary"
+                  onClick={() => {
+                    void recordAnalyticsEvent(
+                      product.id,
+                      "instagram_click"
+                    );
+                  }}
+                >
+                  <Instagram size={17} />
+                  DM on Instagram
+                </a>
+              )}
+            </div>
+          ) : (
+            <p className="contact-unavailable-note" role="status">
+              Direct inquiry is temporarily unavailable. Please check back soon.
+            </p>
+          )}
 
           <div
             className="modal-info-block"
@@ -1601,11 +1743,12 @@ export default function ProductModal({
                       }}
                     >
                       {recommendedProduct.image_url ? (
-                        <img
+                        <StorefrontImage
                           src={recommendedProduct.image_url}
                           alt={recommendedProduct.name}
-                          loading="lazy"
-                          decoding="async"
+                          width={600}
+                          height={672}
+                          sizes="(max-width: 700px) 44vw, 260px"
                           style={{
                             width: "100%",
                             height: "100%",
