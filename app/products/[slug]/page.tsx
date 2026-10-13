@@ -17,6 +17,7 @@ type PageProps = {
   params: Promise<{
     slug: string;
   }>;
+  searchParams: Promise<{ trail?: string }>;
 };
 
 const getProductBySlug = cache(
@@ -283,9 +284,12 @@ export async function generateMetadata({
 
 export default async function ProductRoute({
   params,
+  searchParams,
 }: PageProps) {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
+  const { trail: trailValue } = await searchParams;
+  const trail = (trailValue || "").split(",").filter((item) => /^[a-zA-Z0-9_-]{1,120}$/.test(item)).slice(-8);
 
   if (!product) {
     notFound();
@@ -350,6 +354,7 @@ export default async function ProductRoute({
         promotion={promotion}
         siteContacts={siteContacts}
         allProducts={allProducts}
+        trail={trail}
       />
     </>
   );

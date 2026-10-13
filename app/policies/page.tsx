@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { whatsAppChatUrl } from "@/lib/whatsapp";
+import SiteFooter from "@/components/SiteFooter";
 
 type SiteSetting = {
   setting_key: string;
@@ -273,17 +275,11 @@ export default function PoliciesPage() {
         )}
       </section>
 
-      <footer>
-        <div className="logo">
-          Amna&apos;s{" "}
-          <span>Edit</span>
-        </div>
-
-        <p>
-          Curated pieces.
-          Personal service.
-        </p>
-      </footer>
+      <SiteFooter
+        whatsappUrl={whatsAppChatUrl(settings.whatsapp_number || "")}
+        instagramUrl={settings.instagram_url || null}
+        tiktokUrl={settings.tiktok_url || null}
+      />
     </main>
   );
 }

@@ -9,11 +9,15 @@ import {
 import {
   Instagram,
   MessageCircle,
+  Link2,
+  ArrowLeft,
+  Check,
   X,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import StorefrontImage from "@/components/StorefrontImage";
+import { whatsAppChatUrl } from "@/lib/whatsapp";
 
 import {
   Product,
@@ -111,11 +115,6 @@ function makeWhatsApp(
     process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ||
     "";
 
-  const imageUrl =
-    selectedVariant?.image_url ||
-    product.image_url ||
-    "";
-
   const configuredSiteUrl =
     process.env.NEXT_PUBLIC_SITE_URL?.replace(
       /\/+$/,
@@ -139,9 +138,6 @@ function makeWhatsApp(
         ? window.location.href
         : "";
 
-  const originalPriceLabel =
-    formatInquiryPrice(originalPrice);
-
   const displayPriceLabel =
     formatInquiryPrice(displayPrice);
 
@@ -160,55 +156,28 @@ function makeWhatsApp(
 
   const textLines = [
     isSoldOut
-      ? "Hi Amna's Edit! I'd like to know if this item or selected color will be restocked:"
-      : "Hi Amna's Edit! I'm interested in this item:",
+      ? "Hi Amna's Edit! I'm interested in this product."
+      : "Hi Amna's Edit! I'm interested in this product.",
     "",
     `Product: ${product.name}`,
-    ...(product.brand
-      ? [`Brand: ${product.brand}`]
-      : []),
-    `Status: ${STATUS_LABELS[product.status]}`,
     ...(selectedVariant
-      ? [
-          `Color: ${selectedVariant.color_name}`,
-          `Color availability: ${
-            selectedVariant.is_available
-              ? "Available"
-              : "Sold Out"
-          }`,
-        ]
+      ? [`Color: ${selectedVariant.color_name}`]
       : []),
     ...(displayPriceLabel
-      ? [
-          `Price: ${displayPriceLabel}${
-            hasDiscount && originalPriceLabel
-              ? ` (was ${originalPriceLabel})`
-              : ""
-          }`,
-        ]
+      ? [`${hasDiscount ? "Sale price" : "Price"}: ${displayPriceLabel}`]
       : []),
-    ...(hasDiscount && promotion
-      ? [`Promotion: ${promotion.name}`]
-      : []),
-    ...(pageUrl
-      ? [`Page: ${pageUrl}`]
-      : []),
-    ...(imageUrl
-      ? [`Product image: ${imageUrl}`]
-      : []),
+    ...(pageUrl ? ["", `Product link: ${pageUrl}`] : []),
     "",
-    "Could you please confirm availability and ordering details?",
+    isSoldOut
+      ? "Could you please confirm restock availability?"
+      : "Could you please confirm availability?",
   ];
 
   const inquiryText = textLines.join("\n");
 
-  if (number) {
-    return `https://wa.me/${number.replace(
-      /\D/g,
-      ""
-    )}?text=${encodeURIComponent(
-      inquiryText
-    )}`;
+  const chatUrl = whatsAppChatUrl(number);
+  if (chatUrl) {
+    return `${chatUrl}?text=${encodeURIComponent(inquiryText)}`;
   }
 
   const productFallback =
@@ -400,6 +369,7 @@ export default function ProductModal({
   onOpenProduct,
   close,
   pageMode = false,
+  onBackProduct,
 }: {
   product: Product;
   promotion: PromotionWithRules | null;
@@ -408,6 +378,7 @@ export default function ProductModal({
   onOpenProduct: (product: Product) => void;
   close: () => void;
   pageMode?: boolean;
+  onBackProduct?: () => void;
 }) {
   const [
     variants,
@@ -1092,9 +1063,16 @@ export default function ProductModal({
               </div>
             </div>
           )}
+
+
         </div>
 
         <div className="modal-details">
+        {onBackProduct && (
+          <button type="button" className="product-history-back" onClick={onBackProduct}>
+            <ArrowLeft size={16} aria-hidden="true" /> Previous product
+          </button>
+        )}
           <span
             className={`status-badge ${STATUS_CLASS[displayedStatus]}`}
           >
@@ -1167,7 +1145,7 @@ export default function ProductModal({
                   flexWrap:
                     "wrap",
                   marginBottom:
-                    18,
+                    8,
                 }}
               >
                 {promotion &&
@@ -1214,10 +1192,18 @@ export default function ProductModal({
               </div>
             )}
 
-          <p className="modal-description">
-            {product.description ||
-              "A carefully selected piece from Amna's Edit."}
-          </p>
+          <div className="product-description-summary">
+            {product.description && product.description.length > 190 ? (
+              <details className="product-detail-disclosure">
+                <summary>Description <span className="product-disclosure-hint">Read more</span></summary>
+                <p className="modal-description">{product.description}</p>
+              </details>
+            ) : (
+              <p className="modal-description">
+                {product.description || "A carefully selected piece from Amna's Edit."}
+              </p>
+            )}
+          </div>
 
           {variantLoadError && (
             <div className="error" role="alert">
@@ -1312,32 +1298,6 @@ export default function ProductModal({
               </div>
             )}
 
-          {displayDetails && (
-            <div className="modal-info-block">
-              <h4>
-                Details
-              </h4>
-
-              <p>
-                {displayDetails}
-              </p>
-            </div>
-          )}
-
-          {product.delivery_return && (
-            <div className="modal-info-block">
-              <h4>
-                Delivery & Returns
-              </h4>
-
-              <p>
-                {
-                  product.delivery_return
-                }
-              </p>
-            </div>
-          )}
-
           <div className="modal-meta">
             <span>
               {product.category}
@@ -1348,7 +1308,7 @@ export default function ProductModal({
             </span>
           </div>
 
-          {!pageMode && product.slug && (
+          {product.slug && (
             <div className="product-share-link-wrap">
               <button
                 type="button"
@@ -1356,7 +1316,8 @@ export default function ProductModal({
                 onClick={copyProductLink}
                 aria-label={`Copy link for ${product.name}`}
               >
-                Copy product link
+                {copyLinkMessage === "Product link copied." ? <Check size={15} aria-hidden="true" /> : <Link2 size={15} aria-hidden="true" />}
+                <span>{copyLinkMessage === "Product link copied." ? "Link copied" : "Copy product link"}</span>
               </button>
 
               {copyLinkMessage && (
@@ -1418,387 +1379,177 @@ export default function ProductModal({
             </p>
           )}
 
-          <div
-            className="modal-info-block"
-            style={{ marginTop: 22 }}
-          >
-            <h4>
-              Customer Reviews
-            </h4>
+          <div className="product-secondary-details">
+          {displayDetails && (
+            <details className="product-detail-disclosure">
+              <summary>Product details</summary>
+
+              <p>
+                {displayDetails}
+              </p>
+            </details>
+          )}
+
+          {product.delivery_return && (
+            <details className="product-detail-disclosure">
+              <summary>Delivery &amp; returns</summary>
+
+              <p>
+                {
+                  product.delivery_return
+                }
+              </p>
+            </details>
+          )}
+
+          </div>
+
+          <section className="product-reviews" aria-labelledby={`product-reviews-title-${product.id}`}>
+            <div className="product-reviews-heading">
+              <div>
+                <p className="kicker">YOUR EXPERIENCE MATTERS</p>
+                <h3 id={`product-reviews-title-${product.id}`}>Customer reviews</h3>
+              </div>
+              {reviews.length > 0 && (
+                <div className="product-reviews-summary" aria-label={`${reviewAverage.toFixed(1)} out of 5 stars from ${reviews.length} reviews`}>
+                  <strong>{reviewAverage.toFixed(1)} <span>/ 5</span></strong>
+                  <span className="review-stars" aria-hidden="true">{"★".repeat(Math.round(reviewAverage))}{"☆".repeat(5 - Math.round(reviewAverage))}</span>
+                  <small>{reviews.length} {reviews.length === 1 ? "review" : "reviews"}</small>
+                </div>
+              )}
+            </div>
 
             {reviewsLoadError ? (
-              <div className="error" role="alert">
-                {reviewsLoadError}
-              </div>
+              <div className="error" role="alert">{reviewsLoadError}</div>
             ) : reviews.length > 0 ? (
-              <>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    marginBottom: 14,
-                  }}
-                >
-                  <strong
-                    style={{
-                      fontSize: 16,
-                      color: "var(--pink-deep)",
-                    }}
-                  >
-                    {"★".repeat(Math.round(reviewAverage))}
-                  </strong>
-
-                  <span
-                    style={{
-                      color: "var(--ink)",
-                      fontSize: 12,
-                    }}
-                  >
-                    {reviewAverage.toFixed(1)} / 5
-                  </span>
-
-                  <span
-                    style={{
-                      color: "var(--muted)",
-                      fontSize: 11,
-                    }}
-                  >
-                    ({reviews.length} {reviews.length === 1 ? "review" : "reviews"})
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 12,
-                  }}
-                >
-                  {reviews.map((review) => (
-                    <div
-                      key={review.id}
-                      style={{
-                        padding: "12px 0",
-                        borderTop: "1px solid var(--line)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 10,
-                          marginBottom: 6,
-                        }}
-                      >
-                        <span
-                          style={{
-                            color: "var(--pink-deep)",
-                            fontSize: 12,
-                            letterSpacing: "1px",
-                          }}
-                        >
-                          {"★".repeat(review.rating)}
-                          {"☆".repeat(5 - review.rating)}
-                        </span>
-
-                        <span
-                          style={{
-                            color: "var(--muted)",
-                            fontSize: 10,
-                          }}
-                        >
-                          Verified review
-                        </span>
-                      </div>
-
-                      <p
-                        style={{
-                          margin: 0,
-                          color: "var(--muted)",
-                          fontSize: 12,
-                          lineHeight: 1.7,
-                          whiteSpace: "pre-line",
-                        }}
-                      >
-                        {review.review_text}
-                      </p>
+              <div className="product-reviews-list">
+                {reviews.map((review) => (
+                  <article key={review.id} className="product-review-card">
+                    <div className="product-review-card-header">
+                      <span className="review-stars" aria-label={`${review.rating} out of 5 stars`}>
+                        {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
+                      </span>
+                      <time dateTime={review.created_at}>
+                        {new Date(review.created_at).toLocaleDateString("en-GB", { month: "short", year: "numeric" })}
+                      </time>
                     </div>
-                  ))}
-                </div>
-              </>
+                    <p>{review.review_text}</p>
+                  </article>
+                ))}
+              </div>
             ) : (
-              <p
-                style={{
-                  margin: "0 0 16px",
-                  color: "var(--muted)",
-                  fontSize: 12,
-                  lineHeight: 1.7,
-                }}
-              >
-                No reviews yet. Be the first to share your experience.
-              </p>
+              <div className="product-review-empty">
+                <span className="review-stars" aria-hidden="true">☆☆☆☆☆</span>
+                <strong>No reviews yet</strong>
+                <p>Be the first to share your experience with this piece.</p>
+              </div>
             )}
 
-            <form
-              onSubmit={submitReview}
-              style={{
-                display: "grid",
-                gap: 10,
-                marginTop: 16,
-                paddingTop: 16,
-                borderTop: "1px solid var(--line)",
-              }}
-            >
+            <form className="product-review-form" onSubmit={submitReview}>
+              <div className="product-review-form-heading">
+                <h4>Share your experience</h4>
+                <p>Your name stays private. Reviews appear after approval.</p>
+              </div>
               <div
                 aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  width: 1,
-                  height: 1,
-                  overflow: "hidden",
-                  clip: "rect(0 0 0 0)",
-                  whiteSpace: "nowrap",
-                }}
+                style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}
               >
-                <label>
-                  Website
-                  <input
-                    name="website"
-                    type="text"
-                    tabIndex={-1}
-                    autoComplete="off"
-                  />
-                </label>
+                <label>Website<input name="website" type="text" tabIndex={-1} autoComplete="off" /></label>
               </div>
-
-              <label
-                style={{
-                  display: "grid",
-                  gap: 6,
-                  color: "var(--muted)",
-                  fontSize: 11,
-                }}
-              >
-                Your name (kept private)
-
+              <label className="product-review-field">
+                Your name <span className="product-review-field-hint">(not shown publicly)</span>
                 <input
                   value={reviewName}
-                  onChange={(e) =>
-                    setReviewName(e.target.value)
-                  }
-                  placeholder="Your name"
+                  onChange={(e) => setReviewName(e.target.value)}
+                  placeholder="Enter your name"
                   minLength={1}
                   maxLength={80}
                   autoComplete="name"
                   required
                 />
               </label>
-
-              <label
-                style={{
-                  display: "grid",
-                  gap: 6,
-                  color: "var(--muted)",
-                  fontSize: 11,
-                }}
-              >
-                Rating
-
-                <select
-                  value={reviewRating}
-                  onChange={(e) =>
-                    setReviewRating(Number(e.target.value))
-                  }
-                >
-                  <option value={5}>5 — Excellent</option>
-                  <option value={4}>4 — Very good</option>
-                  <option value={3}>3 — Good</option>
-                  <option value={2}>2 — Fair</option>
-                  <option value={1}>1 — Poor</option>
-                </select>
-              </label>
-
-              <label
-                style={{
-                  display: "grid",
-                  gap: 6,
-                  color: "var(--muted)",
-                  fontSize: 11,
-                }}
-              >
+              <fieldset className="product-review-rating">
+                <legend>Your rating</legend>
+                <div className="product-review-rating-options">
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <label key={rating} className="product-review-rating-option">
+                      <input
+                        type="radio"
+                        name="rating"
+                        value={rating}
+                        checked={reviewRating === rating}
+                        onChange={() => setReviewRating(rating)}
+                        aria-label={`${rating} ${rating === 1 ? "star" : "stars"}`}
+                      />
+                      <span aria-hidden="true">{"★".repeat(rating)}</span>
+                    </label>
+                  ))}
+                </div>
+                <span className="product-review-rating-caption">
+                  {(["", "Poor", "Fair", "Good", "Very good", "Excellent"] as const)[reviewRating]}
+                </span>
+              </fieldset>
+              <label className="product-review-field">
                 Your review
-
                 <textarea
                   rows={4}
                   value={reviewText}
-                  onChange={(e) =>
-                    setReviewText(e.target.value)
-                  }
-                  placeholder="Share your experience with this piece..."
+                  onChange={(e) => setReviewText(e.target.value)}
+                  placeholder="What did you love about this piece?"
                   minLength={5}
                   maxLength={1000}
                   required
                 />
               </label>
-
-              {reviewError && (
-                <div
-                  className="error"
-                  role="alert"
-                >
-                  {reviewError}
-                </div>
-              )}
-
-              {reviewMessage && (
-                <div
-                  role="status"
-                  aria-live="polite"
-                  style={{
-                    background: "#edf7ef",
-                    color: "#47704d",
-                    padding: "10px 12px",
-                    borderRadius: 5,
-                    fontSize: 11,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {reviewMessage}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="button secondary"
-                disabled={reviewSubmitting}
-              >
-                {reviewSubmitting
-                  ? "Submitting..."
-                  : "Submit Review"}
+              {reviewError && <div className="error" role="alert">{reviewError}</div>}
+              {reviewMessage && <div className="product-review-success" role="status" aria-live="polite">{reviewMessage}</div>}
+              <button type="submit" className="button primary product-review-submit" disabled={reviewSubmitting}>
+                {reviewSubmitting ? "Submitting…" : "Submit review"}
               </button>
             </form>
-          </div>
+          </section>
+
+
+        </div>
 
           {recommendedProducts.length > 0 && (
-            <div
-              style={{
-                marginTop: 30,
-                paddingTop: 22,
-                borderTop: "1px solid var(--line)",
-              }}
-            >
-              <div
-                style={{
-                  marginBottom: 14,
-                }}
-              >
-                <p
-                  className="kicker"
-                  style={{ marginBottom: 6 }}
-                >
-                  YOU MAY ALSO LIKE
-                </p>
-                <h4
-                  style={{
-                    margin: 0,
-                    fontFamily: 'Georgia, "Times New Roman", serif',
-                    fontSize: 22,
-                    fontWeight: 400,
-                  }}
-                >
-                  Pieces worth exploring
-                </h4>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: 12,
-                }}
-              >
+            <section className="product-recommendations" aria-labelledby={`recommendations-title-${product.id}`}>
+              <p className="kicker">YOU MAY ALSO LIKE</p>
+              <h4 id={`recommendations-title-${product.id}`}>Pieces worth exploring</h4>
+              <div className="product-recommendations-grid">
                 {recommendedProducts.map((recommendedProduct) => (
                   <button
+                    className="product-recommendation-card"
                     type="button"
                     key={recommendedProduct.id}
-                    onClick={() =>
-                      onOpenProduct(recommendedProduct)
-                    }
-                    style={{
-                      border: "1px solid var(--line)",
-                      background: "#fff",
-                      padding: 0,
-                      textAlign: "left",
-                      cursor: "pointer",
-                      overflow: "hidden",
-                    }}
+                    onClick={() => onOpenProduct(recommendedProduct)}
+                    aria-label={`View ${recommendedProduct.name}`}
                   >
-                    <div
-                      style={{
-                        aspectRatio: "1 / 1.12",
-                        background: "#f7edf0",
-                        overflow: "hidden",
-                      }}
-                    >
+                    <div className="product-recommendation-image">
                       {recommendedProduct.image_url ? (
                         <StorefrontImage
                           src={recommendedProduct.image_url}
                           alt={recommendedProduct.name}
                           width={600}
                           height={672}
-                          sizes="(max-width: 700px) 44vw, 260px"
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
-                            display: "block",
-                          }}
+                          sizes="(max-width: 600px) 42vw, 220px"
                         />
                       ) : (
-                        <div className="image-placeholder">
-                          <span>Amna&apos;s Edit</span>
-                        </div>
+                        <div className="image-placeholder"><span>Amna&apos;s Edit</span></div>
                       )}
                     </div>
-
-                    <div
-                      style={{
-                        padding: "10px 10px 12px",
-                      }}
-                    >
-                      <div className="eyebrow">
-                        {recommendedProduct.brand || "Curated Edit"}
-                      </div>
-                      <div
-                        style={{
-                          fontFamily: 'Georgia, "Times New Roman", serif',
-                          fontSize: 15,
-                          color: "var(--ink)",
-                          lineHeight: 1.25,
-                        }}
-                      >
-                        {recommendedProduct.name}
-                      </div>
+                    <div className="product-recommendation-info">
+                      <span className="eyebrow">{recommendedProduct.brand || "Curated Edit"}</span>
+                      <span className="product-recommendation-name">{recommendedProduct.name}</span>
                       {recommendedProduct.price !== null && (
-                        <div
-                          style={{
-                            marginTop: 6,
-                            color: "var(--muted)",
-                            fontSize: 11,
-                          }}
-                        >
-                          Rs. {recommendedProduct.price.toLocaleString()}
-                        </div>
+                        <span className="product-recommendation-price">Rs. {recommendedProduct.price.toLocaleString()}</span>
                       )}
                     </div>
                   </button>
                 ))}
               </div>
-            </div>
+            </section>
           )}
-        </div>
       </div>
     </div>
   );

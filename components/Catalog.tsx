@@ -11,13 +11,12 @@ import {
 import {
   Search,
   SlidersHorizontal,
-  Instagram,
-  MessageCircle,
-  Music2,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import { whatsAppChatUrl } from "@/lib/whatsapp";
 import ProductModal from "@/components/ProductModal";
+import SiteFooter from "@/components/SiteFooter";
 import StorefrontImage from "@/components/StorefrontImage";
 import ProductGridSkeleton from "@/components/ProductGridSkeleton";
 import { usePromotionClock } from "@/hooks/usePromotionClock";
@@ -885,6 +884,18 @@ export default function Catalog() {
     null
   );
 
+  const [productHistory, setProductHistory] = useState<Product[]>([]);
+  function openRecommendation(next: Product) {
+    if (open) setProductHistory((history) => [...history, open]);
+    setOpen(next);
+  }
+  function returnToPreviousProduct() {
+    const previous = productHistory[productHistory.length - 1];
+    if (!previous) return;
+    setProductHistory((history) => history.slice(0, -1));
+    setOpen(previous);
+  }
+
   const [
     loading,
     setLoading,
@@ -1314,10 +1325,7 @@ export default function Catalog() {
       )
       : null;
 
-  const footerWhatsAppUrl =
-    siteContacts.whatsapp_number.trim()
-      ? `https://wa.me/${siteContacts.whatsapp_number.replace(/\D/g, "")}`
-      : null;
+  const footerWhatsAppUrl = whatsAppChatUrl(siteContacts.whatsapp_number);
 
   const footerInstagramUrl =
     siteContacts.instagram_url.trim() || null;
@@ -1772,67 +1780,11 @@ export default function Catalog() {
         )}
       </section>
 
-      <footer>
-        <div className="logo">
-          Amna&apos;s{" "}
-          <span>Edit</span>
-        </div>
-
-        <p>
-          Curated pieces.
-          Personal service.
-        </p>
-
-        <div className="footer-links">
-          <Link
-            href="/policies"
-            aria-label="Policies"
-          >
-            Policies
-          </Link>
-
-          <Link
-            href="/admin"
-            className="footer-owner-link"
-            aria-label="Owner access"
-          >
-            Owner
-          </Link>
-
-          {footerInstagramUrl && (
-            <a
-              href={footerInstagramUrl}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Instagram"
-            >
-              <Instagram size={18} />
-            </a>
-          )}
-
-          {footerWhatsAppUrl && (
-            <a
-              href={footerWhatsAppUrl}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="WhatsApp"
-            >
-              <MessageCircle size={18} />
-            </a>
-          )}
-
-          {footerTikTokUrl && (
-            <a
-              href={footerTikTokUrl}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="TikTok"
-            >
-              <Music2 size={18} />
-            </a>
-          )}
-        </div>
-      </footer>
+      <SiteFooter
+        whatsappUrl={footerWhatsAppUrl}
+        instagramUrl={footerInstagramUrl}
+        tiktokUrl={footerTikTokUrl}
+      />
 
       {open && (
         <ProductModal
@@ -1844,10 +1796,9 @@ export default function Catalog() {
             siteContacts
           }
           allProducts={products}
-          onOpenProduct={setOpen}
-          close={() =>
-            setOpen(null)
-          }
+          onOpenProduct={openRecommendation}
+          onBackProduct={productHistory.length > 0 ? returnToPreviousProduct : undefined}
+          close={() => { setOpen(null); setProductHistory([]); }}
         />
       )}
     </main>

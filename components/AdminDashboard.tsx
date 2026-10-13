@@ -9,7 +9,6 @@ import {
   Trash2,
   LogOut,
   Package,
-  Eye,
   Search,
   X,
   Upload,
@@ -17,15 +16,13 @@ import {
   Tag,
   CalendarDays,
   Percent,
-  MessageCircle,
-  Instagram,
-  BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { optimizeProductImage } from "@/lib/imageUpload";
 import { storagePathsFromUrls } from "@/lib/storageImages";
+import { normalizeWhatsAppNumber } from "@/lib/whatsapp";
 import {
   Product,
   ProductStatus,
@@ -2720,6 +2717,15 @@ export default function AdminDashboard({
       return;
     }
 
+    const whatsappInput = siteSettings.whatsapp_number.trim();
+    const normalizedWhatsApp = whatsappInput
+      ? normalizeWhatsAppNumber(whatsappInput)
+      : null;
+    if (whatsappInput && !normalizedWhatsApp) {
+      setError("Enter a valid WhatsApp number, e.g. 03001234567 or +923001234567.");
+      return;
+    }
+
     setSettingsSaving(true);
 
     try {
@@ -2732,7 +2738,9 @@ export default function AdminDashboard({
       ).map((key) => ({
         setting_key: key,
         setting_value:
-          siteSettings[key] || "",
+          key === "whatsapp_number"
+            ? (normalizedWhatsApp || "")
+            : siteSettings[key] || "",
         updated_at:
           new Date().toISOString(),
       }));
@@ -2756,6 +2764,10 @@ export default function AdminDashboard({
         return;
       }
 
+      setSiteSettings((previous) => ({
+        ...previous,
+        whatsapp_number: normalizedWhatsApp || "",
+      }));
       setSettingsDirty(false);
       setSuccessMessage(
         "Website settings saved successfully."
@@ -3257,7 +3269,7 @@ export default function AdminDashboard({
           display: "flex",
           gap: 8,
           flexWrap: "wrap",
-          padding: "0 24px 20px",
+          padding: "16px 24px 8px",
         }}
       >
         {[
@@ -3337,7 +3349,7 @@ export default function AdminDashboard({
         <div className="admin-title">
           <div>
             <p className="kicker">
-              OWNER DASHBOARD
+              PRODUCT MANAGEMENT
             </p>
 
             <h1>
@@ -3361,154 +3373,66 @@ export default function AdminDashboard({
         )}
 
         {section === "overview" && (<>
-        {/* =================================================
-            STATS
-        ================================================= */}
-
-        <div className="stats">
+        <div className="admin-overview-heading">
           <div>
-            <Package />
-
-            <strong>
-              {products.length}
-            </strong>
-
-            <span>
-              Total products
-            </span>
-          </div>
-
-          <div>
-            <Eye />
-
-            <strong>
-              {
-                products.filter(
-                  (p) =>
-                    p.status ===
-                    "in_stock"
-                ).length
-              }
-            </strong>
-
-            <span>
-              In stock
-            </span>
-          </div>
-
-          <div>
-            <Package />
-
-            <strong>
-              {
-                products.filter(
-                  (p) =>
-                    p.status ===
-                    "sold_out"
-                ).length
-              }
-            </strong>
-
-            <span>
-              Sold out
-            </span>
+            <p className="kicker">OWNER OVERVIEW</p>
+            <h1>At a glance.</h1>
+            <p>Your catalogue and pending reviews in one place.</p>
           </div>
         </div>
 
-        {/* =================================================
-            CUSTOMER INTEREST ANALYTICS
-        ================================================= */}
+        <div className="overview-metrics" aria-label="Business snapshot">
+          <div className="overview-metric">
+            <span>Products</span><strong>{products.length}</strong>
+          </div>
+          <div className="overview-metric">
+            <span>Available</span>
+            <strong>{products.filter((p) => p.status === "in_stock").length}</strong>
+          </div>
+          <div className="overview-metric">
+            <span>Sold out</span>
+            <strong>{products.filter((p) => p.status === "sold_out").length}</strong>
+          </div>
+          <div className={`overview-metric${pendingReviewsCount > 0 ? " overview-metric-attention" : ""}`}>
+            <span>Reviews to approve</span>
+            <strong>{reviewsLoading ? "…" : pendingReviewsCount}</strong>
+            {pendingReviewsCount > 0 && <Link href="/admin/reviews">Review submissions →</Link>}
+          </div>
+        </div>
 
-        <div
-          className="admin-title analytics-heading"
-        >
+        <div className="overview-section-heading">
           <div>
-            <p className="kicker">
-              CUSTOMER INTEREST
-            </p>
-
-            <h2 className="admin-section-title">
-              Last 30 days.
-            </h2>
-
-            <p className="analytics-subtitle">
-              Privacy-conscious interaction data:
-              product views and inquiry clicks only.
-            </p>
+            <p className="kicker">CUSTOMER INTEREST</p>
+            <h2>Last 30 days</h2>
+            <p>Product views and inquiry clicks, not completed sales.</p>
           </div>
         </div>
 
         {analyticsError ? (
-          <div
-            className="error admin-error"
-            role="alert"
-          >
-            {analyticsError}
-          </div>
+          <div className="error admin-error" role="alert">{analyticsError}</div>
         ) : analyticsLoading ? (
-          <div className="empty analytics-empty">
-            Loading business insights...
+          <div className="empty analytics-empty">Loading business insights...</div>
+        ) : (
+          <div className="overview-interest-summary">
+            <div><span>Product views</span><strong>{analyticsSummary.views}</strong></div>
+            <div><span>WhatsApp clicks</span><strong>{analyticsSummary.whatsappClicks}</strong></div>
+            <div><span>Instagram clicks</span><strong>{analyticsSummary.instagramClicks}</strong></div>
           </div>
+        )}
+
+        <details className="overview-expandable">
+          <summary>Explore detailed analytics <span>Product rankings, category and brand interest</span></summary>
+          <div className="overview-expandable-content">
+        {/* =================================================
+            CUSTOMER INTEREST ANALYTICS
+        ================================================= */}
+
+        {analyticsError ? (
+          <div className="error admin-error" role="alert">{analyticsError}</div>
+        ) : analyticsLoading ? (
+          <div className="empty analytics-empty">Loading detailed analytics...</div>
         ) : (
           <>
-            <div className="stats analytics-stats">
-              <div>
-                <Eye />
-
-                <strong>
-                  {
-                    analyticsSummary.views
-                  }
-                </strong>
-
-                <span>
-                  Product views
-                </span>
-              </div>
-
-              <div>
-                <MessageCircle />
-
-                <strong>
-                  {
-                    analyticsSummary.whatsappClicks
-                  }
-                </strong>
-
-                <span>
-                  WhatsApp clicks
-                </span>
-              </div>
-
-              <div>
-                <Instagram />
-
-                <strong>
-                  {
-                    analyticsSummary.instagramClicks
-                  }
-                </strong>
-
-                <span>
-                  Instagram clicks
-                </span>
-              </div>
-
-              <div>
-                <BarChart3 />
-
-                <strong>
-                  {
-                    analyticsSummary.inquiryClicks
-                  }
-                </strong>
-
-                <span>
-                  Total inquiry clicks
-                </span>
-              </div>
-            </div>
-
             {analyticsSummary
               .productRows.length === 0 ? (
               <div className="empty analytics-empty">
@@ -3675,6 +3599,12 @@ export default function AdminDashboard({
           </>
         )}
 
+          </div>
+        </details>
+
+        <details className="overview-expandable overview-inventory-breakdown">
+          <summary>View inventory breakdown <span>By category, brand and audience</span></summary>
+          <div className="overview-expandable-content">
         {/* =================================================
             CATEGORY STATISTICS
         ================================================= */}
@@ -3789,6 +3719,9 @@ export default function AdminDashboard({
           ))}
         </div>
 
+          </div>
+        </details>
+
           </>
         )}
 
@@ -3800,7 +3733,6 @@ export default function AdminDashboard({
         <div
           className="admin-title"
           style={{
-            marginTop: 55,
             marginBottom: 24,
           }}
         >
@@ -3819,6 +3751,19 @@ export default function AdminDashboard({
             </p>
           </div>
         </div>
+
+        {!reviewsLoading && (
+          <div className="admin-review-summary" aria-label="Review totals">
+            <div className="admin-review-summary-card">
+              <span>Total reviews</span>
+              <strong>{reviews.length}</strong>
+            </div>
+            <div className={`admin-review-summary-card${pendingReviewsCount > 0 ? " admin-review-summary-attention" : ""}`}>
+              <span>Pending approval</span>
+              <strong>{pendingReviewsCount}</strong>
+            </div>
+          </div>
+        )}
 
         {reviewsLoading ? (
           <div className="variant-empty">
@@ -4009,29 +3954,6 @@ export default function AdminDashboard({
           </div>
         )}
 
-        {reviews.length > 0 && (
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
-              marginTop: -20,
-              marginBottom: 35,
-            }}
-          >
-            <span className="promotion-rule">
-              {reviews.length}{" "}
-              {reviews.length === 1
-                ? "review"
-                : "reviews"}
-            </span>
-
-            <span className="promotion-rule">
-              {pendingReviewsCount}{" "}
-              pending
-            </span>
-          </div>
-        )}
 
           </>
         )}
@@ -4772,8 +4694,14 @@ export default function AdminDashboard({
                       e.target.value
                     )
                   }
-                  placeholder="e.g. 923001234567"
+                  placeholder="e.g. 03001234567 or +923001234567"
+                  type="tel"
+                  autoComplete="tel"
+                  aria-describedby="whatsapp-number-help"
                 />
+                <small id="whatsapp-number-help">
+                  Pakistani numbers beginning with 0 are accepted and saved in international format.
+                </small>
               </label>
 
               <label>

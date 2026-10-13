@@ -1010,7 +1010,7 @@ footer p {
 }
 
 .promotion-heading {
-  margin-top: 55px;
+  margin-top: 0;
   margin-bottom: 24px;
 }
 
@@ -1776,7 +1776,7 @@ th {
 ========================================================= */
 
 .settings-heading {
-  margin-top: 55px;
+  margin-top: 0;
 
   margin-bottom: 24px;
 }
@@ -2050,7 +2050,7 @@ th {
   }
 
   .promotion-heading {
-    margin-top: 40px;
+    margin-top: 0;
   }
 
   .promotion-heading .button {
@@ -3939,4 +3939,431 @@ th {
 .home-product-card-sold-out:hover .home-product-copy,
 .home-product-card-sold-out:focus-visible .home-product-copy {
   opacity: 1;
+}
+
+/* Step 9E: concise owner overview; detailed reporting stays available on request. */
+.admin-overview-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.admin-overview-heading h1 { margin: 0; font: normal clamp(30px, 4vw, 42px) Georgia, 'Times New Roman', serif; }
+.admin-overview-heading p:not(.kicker), .overview-section-heading p:not(.kicker) {
+  margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6;
+}
+.overview-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.overview-metric { display: flex; flex-direction: column; gap: 8px; padding: 17px 18px; min-width: 0; background: #fff; border: 1px solid var(--line); border-radius: 14px; }
+.overview-metric > span { font-size: 12px; color: var(--muted); }
+.overview-metric strong { font: 32px Georgia, 'Times New Roman', serif; }
+.overview-metric small, .overview-metric a { font-size: 11px; color: var(--muted); }
+.overview-metric a { color: var(--pink-deep); text-decoration: underline; text-underline-offset: 3px; }
+.overview-metric-attention { border-color: var(--pink-deep); background: var(--pink-soft); }
+.overview-section-heading { margin-top: 26px; margin-bottom: 16px; }
+.overview-section-heading h2 { margin: 0; font: 26px Georgia, 'Times New Roman', serif; }
+.overview-interest-summary { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-bottom: 20px; }
+.overview-interest-summary > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.overview-interest-summary span { color: var(--muted); font-size: 12px; }
+.overview-interest-summary strong { font: 24px Georgia, 'Times New Roman', serif; }
+.overview-expandable { margin-top: 14px; border: 1px solid var(--line); background: #fff; border-radius: 14px; overflow: hidden; }
+.overview-expandable > summary { cursor: pointer; padding: 18px 22px; font-weight: 700; font-size: 13px; color: var(--ink); }
+.overview-expandable > summary span { display: block; margin-top: 6px; font-weight: 400; font-size: 11px; color: var(--muted); }
+.overview-expandable[open] > summary { border-bottom: 1px solid var(--line); }
+.overview-expandable-content { padding: 0 20px 22px; }
+.overview-expandable-content .analytics-heading { margin-top: 26px; }
+.overview-expandable-content .admin-title { margin-top: 28px !important; }
+@media (max-width: 900px) { .overview-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 560px) {
+  .overview-metrics, .overview-interest-summary { grid-template-columns: 1fr 1fr; }
+  .overview-interest-summary > div { flex-direction: column; align-items: flex-start; }
+  .overview-expandable-content { padding: 0 12px 16px; }
+}
+@media (max-width: 370px) { .overview-metrics, .overview-interest-summary { grid-template-columns: 1fr; } }
+
+/* Keep the overview close to its navigation without changing other admin pages. */
+.admin-content:has(.admin-overview-heading) { padding-top: 26px; }
+
+
+/* Phase 9E: consistent admin navigation-to-content rhythm. */
+.admin-page .admin-content {
+  padding-top: 22px;
+}
+
+/* Storefront footer: separate brand, navigation and contact information. */
+.site-footer {
+  display: block;
+  padding: 0;
+  background: #fbf4f6;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.site-footer-main {
+  width: min(1260px, 100%);
+  margin: 0 auto;
+  padding: 48px clamp(24px, 5vw, 72px) 38px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(130px, 0.8fr) minmax(150px, 0.8fr);
+  gap: clamp(24px, 5vw, 70px);
+  align-items: start;
+}
+.site-footer-brand .logo { margin-bottom: 12px; }
+.site-footer-brand p { margin: 0 0 8px; line-height: 1.65; }
+.site-footer-brand .site-footer-note { max-width: 300px; color: var(--muted); }
+.site-footer-group { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.site-footer-group h2 {
+  margin: 4px 0 8px;
+  font: 700 11px Arial, Helvetica, sans-serif;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--pink-deep);
+}
+.site-footer-group a {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font: 13px Arial, Helvetica, sans-serif;
+  color: var(--ink);
+  min-height: 26px;
+  transition: color .2s ease;
+}
+.site-footer-group a:hover,
+.site-footer-bottom a:hover { color: var(--pink-deep); }
+.site-footer-bottom {
+  border-top: 1px solid var(--line);
+  padding: 17px clamp(24px, 5vw, 72px);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.site-footer-bottom a { color: var(--muted); }
+@media (max-width: 700px) {
+  .site-footer-main { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 20px; padding-top: 36px; }
+  .site-footer-brand { grid-column: 1 / -1; }
+  .admin-page .admin-content { padding-top: 18px; }
+}
+@media (max-width: 380px) {
+  .site-footer-main { grid-template-columns: 1fr; }
+  .site-footer-brand { grid-column: 1; }
+}
+
+
+/* Restore Phase 9 product layout and review styles preserved from verified product patches. */
+/* Step 9A: visible, consistent product navigation and sharing actions */
+.product-permalink, .product-history-back {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border: 1px solid var(--line); border-radius: 999px; background: #fff;
+  color: var(--ink); padding: 8px 13px; font-size: 12px; font-weight: 600;
+  text-decoration: none; cursor: pointer; width: auto; min-height: 36px;
+}
+.product-permalink:hover, .product-history-back:hover { background: #f8edf1; }
+.product-permalink:focus-visible, .product-history-back:focus-visible { outline: 2px solid var(--pink-deep); outline-offset: 3px; }
+.product-history-back { position: relative; margin: 0 0 12px; }
+
+/* Step 9A: navigation belongs to the details column, not the modal grid. */
+.product-modal .modal-details > .product-history-back {
+  align-self: flex-start;
+  flex: 0 0 auto;
+  max-width: 100%;
+  margin-bottom: 20px;
+  border-radius: 22px;
+}
+
+
+/* Step 9B: compact, progressive-disclosure product information. */
+.product-modal .modal-details {
+  min-width: 0;
+}
+.product-description-summary {
+  margin: 0 0 6px;
+}
+.product-description-summary .modal-description {
+  margin-bottom: 12px;
+  white-space: pre-line;
+}
+.product-detail-disclosure {
+  border-top: 1px solid var(--line);
+  padding: 14px 0;
+  color: var(--ink);
+}
+.product-detail-disclosure:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.product-detail-disclosure summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+  list-style: none;
+  min-height: 27px;
+}
+.product-detail-disclosure summary::-webkit-details-marker { display: none; }
+.product-detail-disclosure summary::after {
+  content: "+";
+  color: var(--pink-deep);
+  font-size: 19px;
+  font-weight: 400;
+  margin-left: auto;
+}
+.product-detail-disclosure[open] summary::after { content: "−"; }
+.product-detail-disclosure summary:focus-visible {
+  outline: 2px solid var(--pink-deep);
+  outline-offset: 4px;
+  border-radius: 3px;
+}
+.product-disclosure-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.product-detail-disclosure p {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.product-secondary-details { margin-top: 20px; }
+.product-modal .modal-media { min-height: 0; }
+.product-modal .modal-main-image { height: clamp(290px, 37vw, 430px); }
+.product-modal .modal-details { padding: 32px 32px 38px; }
+.product-modal .modal-actions { margin-top: 14px; }
+.product-modal .modal-meta { margin-top: 12px; }
+@media (max-width: 900px) {
+  .product-modal .modal-main-image { height: clamp(265px, 54vw, 370px); }
+  .product-modal .modal-details { padding: 25px 22px 30px; }
+}
+@media (max-width: 600px) {
+  .product-modal .modal-main-image { height: min(76vw, 340px); }
+  .product-modal .modal-media { padding: 10px; }
+  .product-modal .modal-details { padding: 22px 18px 28px; }
+}
+
+/* Step 9B: show every gallery thumbnail without horizontal swiping. */
+.product-modal .product-gallery-thumbnails {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  overflow: visible;
+  scroll-snap-type: none;
+  padding: 3px;
+  align-items: stretch;
+}
+.product-modal .product-gallery-thumbnail {
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  aspect-ratio: 4 / 5;
+  flex: initial;
+  scroll-snap-align: none;
+}
+.product-modal .product-gallery-thumbnail img { width: 100%; height: 100%; }
+
+/* Compact, responsive recommendations with clear hover/focus states. */
+.product-recommendations {
+  border-top: 1px solid var(--line);
+  padding-top: 22px;
+  margin-top: 28px;
+}
+.product-recommendations .kicker { margin-bottom: 6px; }
+.product-recommendations h4 {
+  margin: 0 0 16px;
+  font: 400 22px/1.2 Georgia, "Times New Roman", serif;
+}
+.product-recommendations-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.product-recommendation-card {
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.product-recommendation-card:hover,
+.product-recommendation-card:focus-visible {
+  border-color: var(--pink-deep);
+  box-shadow: 0 6px 20px rgba(80, 38, 51, .09);
+  transform: translateY(-2px);
+}
+.product-recommendation-card:focus-visible { outline: 2px solid var(--pink-deep); outline-offset: 2px; }
+.product-recommendation-image { aspect-ratio: 4 / 4.5; background: var(--pink-soft); overflow: hidden; }
+.product-recommendation-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.product-recommendation-info { display: flex; flex-direction: column; gap: 5px; padding: 11px; }
+.product-recommendation-info .eyebrow { margin: 0; }
+.product-recommendation-name { font: 400 15px/1.35 Georgia, "Times New Roman", serif; overflow-wrap: anywhere; }
+.product-recommendation-price { font-size: 12px; color: var(--muted); }
+@media (max-width: 600px) {
+  .product-modal .product-gallery-thumbnails { gap: 8px; }
+  .product-recommendations-grid { gap: 10px; }
+  .product-recommendations h4 { font-size: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-recommendation-card { transition: none; }
+  .product-recommendation-card:hover { transform: none; }
+}
+
+
+/* Step 9C — product review presentation and accessible input styling. */
+.product-reviews { margin-top: 26px; padding-top: 25px; border-top: 1px solid var(--line); min-width: 0; }
+.product-reviews-heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+.product-reviews-heading .kicker { margin-bottom: 7px; font-size: 9px; letter-spacing: 1.8px; }
+.product-reviews-heading h3 { font: normal 25px/1.2 Georgia, "Times New Roman", serif; margin: 0; color: var(--ink); }
+.product-reviews-summary { display: grid; gap: 3px; justify-items: end; }
+.product-reviews-summary strong { color: var(--ink); font-size: 23px; }
+.product-reviews-summary strong span { font-size: 12px; font-weight: 400; color: var(--muted); }
+.product-reviews-summary small { font-size: 11px; color: var(--muted); }
+.review-stars { color: #9c4764; letter-spacing: 1px; font-size: 16px; line-height: 1.3; }
+.product-reviews-list { display: grid; gap: 12px; margin: 0 0 22px; }
+.product-review-card { border: 1px solid var(--line); border-radius: 12px; background: #fffafb; padding: 16px; }
+.product-review-card-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.product-review-card time { color: var(--muted); font-size: 11px; }
+.product-review-card p { font-size: 13px; line-height: 1.7; color: var(--ink); white-space: pre-line; overflow-wrap: anywhere; margin: 10px 0 0; }
+.product-review-empty { border: 1px dashed #d8bac5; border-radius: 12px; padding: 22px 16px; background: #fffafb; display: grid; justify-items: center; text-align: center; gap: 6px; }
+.product-review-empty strong { font: normal 19px Georgia, "Times New Roman", serif; }
+.product-review-empty p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.product-review-form { display: grid; gap: 17px; margin-top: 24px; padding: 22px; background: #fffafb; border: 1px solid var(--line); border-radius: 14px; }
+.product-review-form-heading h4 { font: normal 22px Georgia, "Times New Roman", serif; margin: 0 0 6px; }
+.product-review-form-heading p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.product-review-field { display: grid; gap: 8px; font-size: 12px; font-weight: 600; color: var(--ink); }
+.product-review-field-hint { font-size: 11px; color: var(--muted); font-weight: 400; }
+.product-review-field input, .product-review-field textarea { display: block; width: 100%; border: 1px solid #d5bfc7; border-radius: 8px; background: #fff; color: var(--ink); padding: 12px 13px; font: normal 13px/1.5 Arial, Helvetica, sans-serif; }
+.product-review-field textarea { resize: vertical; min-height: 105px; }
+.product-review-field input:focus-visible, .product-review-field textarea:focus-visible { outline: 2px solid var(--pink-deep); outline-offset: 2px; }
+.product-review-rating { border: 0; margin: 0; padding: 0; min-width: 0; }
+.product-review-rating legend { font-size: 12px; font-weight: 600; padding: 0; margin-bottom: 9px; }
+.product-review-rating-options { display: flex; gap: 6px; flex-wrap: wrap; }
+.product-review-rating-option { cursor: pointer; position: relative; }
+.product-review-rating-option input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.product-review-rating-option span { display: flex; align-items: center; justify-content: center; min-width: 40px; min-height: 40px; border: 1px solid #ddcbd1; background: #fff; border-radius: 8px; padding: 0 7px; color: #9c4764; font-size: 12px; letter-spacing: -1px; }
+.product-review-rating-option input:checked + span { border-color: var(--pink-deep); background: #f9e9ef; box-shadow: inset 0 0 0 1px var(--pink-deep); }
+.product-review-rating-option input:focus-visible + span { outline: 2px solid var(--pink-deep); outline-offset: 3px; }
+.product-review-rating-caption { display: block; font-size: 11px; color: var(--muted); margin-top: 8px; }
+.product-review-success { background: #edf7ef; color: #35613a; padding: 12px; border-radius: 8px; font-size: 12px; line-height: 1.6; }
+.product-review-form .product-review-submit { width: 100%; }
+@media (max-width: 600px) { .product-review-form { padding: 17px 14px; } .product-reviews-heading h3 { font-size: 23px; } }
+
+
+/* Step 9E: review totals belong before the moderation list. */
+.admin-review-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 22px;
+}
+.admin-review-summary-card {
+  min-width: 0;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.admin-review-summary-card span { font-size: 12px; color: var(--muted); }
+.admin-review-summary-card strong { font: 30px/1.1 Georgia, "Times New Roman", serif; color: var(--ink); }
+.admin-review-summary-attention { background: var(--pink-soft); border-color: var(--pink-deep); }
+@media (max-width: 520px) { .admin-review-summary { grid-template-columns: 1fr 1fr; } .admin-review-summary-card { padding: 14px; } }
+
+/* Final product layout: semantic order matches mobile reading order.
+   Desktop keeps recommendations beneath the gallery in the left column. */
+.product-modal {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: start;
+}
+.product-modal > .modal-media {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  min-width: 0;
+  min-height: 0;
+}
+.product-modal > .modal-details {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.product-modal > .product-recommendations {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: start;
+  min-width: 0;
+  margin: 0;
+  padding: 22px 16px 24px;
+  background: #fffafb;
+}
+@media (max-width: 900px) {
+  .product-modal { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; }
+  .product-modal > .modal-media { grid-column: 1; grid-row: 1; }
+  .product-modal > .modal-details { grid-column: 1; grid-row: 2; }
+  .product-modal > .product-recommendations { grid-column: 1; grid-row: 3; padding: 20px 18px 26px; }
+}
+
+/* Final storefront spacing adjustments — shared across pages. */
+@media (min-width: 701px) {
+  .home-about { padding-top: 64px; padding-bottom: 72px; }
+  .home-process { margin-top: 45px; padding-top: 38px; }
+  .home-journal { padding-bottom: 54px; }
+  .collection { padding-top: 56px; padding-bottom: 75px; }
+}
+@media (max-width: 700px) {
+  .home-about { padding-top: 52px; padding-bottom: 56px; }
+  .home-process { margin-top: 32px; padding-top: 28px; }
+  .home-journal { padding-bottom: 42px; }
+  .collection { padding-top: 40px; padding-bottom: 55px; }
+}
+/* Keep the price, description, variants and product actions grouped. */
+.product-modal .modal-details .modal-price { margin-bottom: 12px; }
+.product-modal .product-description-summary { margin-top: 0; margin-bottom: 10px; }
+.product-modal .color-selector { margin-top: 10px; margin-bottom: 15px; }
+.product-modal .modal-meta { margin-top: 12px; }
+/* Do not allow an old footer's global flex layout to influence our shared footer. */
+.site-footer { display: block; }
+
+/* Balanced product-detail spacing — scoped so gallery/reviews remain unchanged.
+   Restore breathing room without the oversized default margins. */
+.product-modal .modal-details > .modal-price,
+.product-modal .modal-details .modal-price { margin-bottom: 0; }
+.product-modal .modal-details > .product-description-summary {
+  margin: 14px 0 18px;
+}
+.product-modal .product-description-summary > .modal-description {
+  margin: 0;
+  line-height: 1.7;
+}
+.product-modal .modal-details > .color-selector {
+  margin: 18px 0 18px;
+}
+.product-modal .modal-details > .modal-meta {
+  margin: 18px 0 10px;
+  gap: 10px;
+}
+.product-modal .modal-details > .product-share-link-wrap {
+  margin: 0 0 22px;
+}
+
+/* Product status and brand: keep a clear gap without changing other details. */
+.product-modal .modal-details > .status-badge + .eyebrow {
+  margin-top: 12px;
 }

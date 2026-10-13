@@ -6,13 +6,14 @@ import { useEffect, useMemo, useState } from "react";
 import {
     Instagram,
     MessageCircle,
-    Music2,
     ArrowRight,
     Star,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import { whatsAppChatUrl } from "@/lib/whatsapp";
 import ProductModal from "@/components/ProductModal";
+import SiteFooter from "@/components/SiteFooter";
 import StorefrontImage from "@/components/StorefrontImage";
 import ProductGridSkeleton from "@/components/ProductGridSkeleton";
 import { usePromotionClock } from "@/hooks/usePromotionClock";
@@ -126,18 +127,6 @@ function isPromotionActive(
         now >= new Date(promotion.start_at).getTime() &&
         now <= new Date(promotion.end_at).getTime()
     );
-}
-
-function makeWhatsAppUrl(
-    number: string
-): string | null {
-    const clean = number.replace(/\D/g, "");
-
-    if (!clean) {
-        return null;
-    }
-
-    return `https://wa.me/${clean}`;
 }
 
 function makeInstagramUrl(
@@ -450,6 +439,18 @@ export default function HomePage() {
     const [open, setOpen] =
         useState<Product | null>(null);
 
+  const [productHistory, setProductHistory] = useState<Product[]>([]);
+  function openRecommendation(next: Product) {
+    if (open) setProductHistory((history) => [...history, open]);
+    setOpen(next);
+  }
+  function returnToPreviousProduct() {
+    const previous = productHistory[productHistory.length - 1];
+    if (!previous) return;
+    setProductHistory((history) => history.slice(0, -1));
+    setOpen(previous);
+  }
+
     useEffect(() => {
         async function loadHomeData() {
             setLoadError("");
@@ -653,12 +654,9 @@ export default function HomePage() {
         );
 
     const whatsappUrl =
-        makeWhatsAppUrl(
+        whatsAppChatUrl(
             siteSettings.whatsapp_number
         );
-
-    const tiktokUrl =
-        siteSettings.tiktok_url.trim() || null;
 
     if (loading) {
         return (
@@ -1158,67 +1156,11 @@ export default function HomePage() {
           FOOTER
       ===================================================== */}
 
-            <footer>
-                <div className="logo">
-                    Amna&apos;s{" "}
-                    <span>Edit</span>
-                </div>
-
-                <p>
-                    Curated pieces.
-                    Personal service.
-                </p>
-
-                <div className="footer-links">
-                    <Link
-                        href="/policies"
-                        aria-label="Policies"
-                    >
-                        Policies
-                    </Link>
-
-                    <Link
-                        href="/admin"
-                        className="footer-owner-link"
-                        aria-label="Owner access"
-                    >
-                        Owner
-                    </Link>
-
-                    {instagramUrl && (
-                        <a
-                            href={instagramUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label="Instagram"
-                        >
-                            <Instagram size={18} />
-                        </a>
-                    )}
-
-                    {whatsappUrl && (
-                        <a
-                            href={whatsappUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label="WhatsApp"
-                        >
-                            <MessageCircle size={18} />
-                        </a>
-                    )}
-
-                    {tiktokUrl && (
-                        <a
-                            href={tiktokUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label="TikTok"
-                        >
-                            <Music2 size={18} />
-                        </a>
-                    )}
-                </div>
-            </footer>
+            <SiteFooter
+                whatsappUrl={whatsappUrl}
+                instagramUrl={instagramUrl}
+                tiktokUrl={siteSettings.tiktok_url.trim() || null}
+            />
 
             {open && (
                 <ProductModal
@@ -1236,8 +1178,9 @@ export default function HomePage() {
                             siteSettings.tiktok_url,
                     }}
                     allProducts={products}
-                    onOpenProduct={setOpen}
-                    close={() => setOpen(null)}
+                    onOpenProduct={openRecommendation}
+          onBackProduct={productHistory.length > 0 ? returnToPreviousProduct : undefined}
+                    close={() => { setOpen(null); setProductHistory([]); }}
                 />
             )}
         </main>

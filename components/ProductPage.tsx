@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import ProductModal from "@/components/ProductModal";
+import SiteFooter from "@/components/SiteFooter";
+import { whatsAppChatUrl } from "@/lib/whatsapp";
 import type { Product } from "@/types/product";
 
 type ProductModalProps =
@@ -23,15 +25,16 @@ export default function ProductPage({
   promotion,
   siteContacts,
   allProducts,
-}: ProductPageProps) {
+  trail = [],
+}: ProductPageProps & { trail?: string[] }) {
   const router = useRouter();
 
   function openRecommended(
     nextProduct: Product
   ) {
-    router.push(
-      `/products/${nextProduct.slug}`
-    );
+    const nextTrail = [...trail, product.slug].slice(-8);
+    const query = new URLSearchParams({ trail: nextTrail.join(",") });
+    router.push(`/products/${encodeURIComponent(nextProduct.slug)}?${query}`);
   }
 
   return (
@@ -61,10 +64,21 @@ export default function ProductPage({
         siteContacts={siteContacts}
         allProducts={allProducts}
         onOpenProduct={openRecommended}
+        onBackProduct={trail.length ? () => {
+          const previous = trail[trail.length - 1];
+          const earlier = trail.slice(0, -1);
+          const query = earlier.length ? `?trail=${encodeURIComponent(earlier.join(","))}` : "";
+          router.push(`/products/${encodeURIComponent(previous)}${query}`);
+        } : undefined}
         close={() =>
           router.push("/collection")
         }
         pageMode
+      />
+      <SiteFooter
+        whatsappUrl={whatsAppChatUrl(siteContacts.whatsapp_number)}
+        instagramUrl={siteContacts.instagram_url || null}
+        tiktokUrl={siteContacts.tiktok_url || null}
       />
     </main>
   );
