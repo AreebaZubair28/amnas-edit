@@ -17,7 +17,7 @@ type PageProps = {
   params: Promise<{
     slug: string;
   }>;
-  searchParams: Promise<{ trail?: string }>;
+  searchParams: Promise<{ trail?: string; color?: string }>;
 };
 
 const getProductBySlug = cache(
@@ -229,6 +229,7 @@ async function loadPageData(
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
@@ -242,6 +243,24 @@ export async function generateMetadata({
       },
     };
   }
+
+  const { color } = await searchParams;
+  // Use a real variant belonging to this product; do not accept arbitrary image URLs.
+  const requestedVariantId =
+    color && /^[a-f0-9-]{36}$/i.test(color) ? color : null;
+  const variantResult = requestedVariantId
+    ? await (await createClient())
+        .from("product_variants")
+        .select("id, color_name, image_url, gallery")
+        .eq("product_id", product.id)
+        .eq("id", requestedVariantId)
+        .maybeSingle()
+    : null;
+  const variant = variantResult?.data ?? null;
+  const previewImage = variant?.image_url || variant?.gallery?.[0] || product.image_url;
+  const sharedPath = `/products/${encodeURIComponent(product.slug)}${
+    variant ? `?color=${encodeURIComponent(variant.id)}` : ""
+  }`;
 
   const description =
     product.description?.trim() ||
@@ -261,12 +280,12 @@ export async function generateMetadata({
       type: "website",
       title: `${product.name} | Amna's Edit`,
       description,
-      url: `/products/${product.slug}`,
-      images: product.image_url
+      url: sharedPath,
+      images: previewImage
         ? [
             {
-              url: product.image_url,
-              alt: product.name,
+              url: previewImage!,
+              alt: variant ? `${product.name} - ${variant.color_name}` : product.name,
             },
           ]
         : ["/opengraph-image"],
@@ -275,8 +294,8 @@ export async function generateMetadata({
       card: "summary_large_image",
       title: `${product.name} | Amna's Edit`,
       description,
-      images: product.image_url
-        ? [product.image_url]
+      images: previewImage
+        ? [previewImage]
         : ["/opengraph-image"],
     },
   };

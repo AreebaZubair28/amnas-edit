@@ -131,9 +131,9 @@ function makeWhatsApp(
 
   const pageUrl =
     product.slug && productBaseUrl
-      ? `${productBaseUrl}/products/${encodeURIComponent(
-          product.slug
-        )}`
+      ? `${productBaseUrl}/products/${encodeURIComponent(product.slug)}${
+          selectedVariant ? `?color=${encodeURIComponent(selectedVariant.id)}` : ""
+        }`
       : typeof window !== "undefined"
         ? window.location.href
         : "";
@@ -603,11 +603,13 @@ export default function ProductModal({
          * Products without color variants continue using their
          * normal product-level image and gallery.
          */
+        const requestedColor =
+          typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search).get("color")
+            : null;
         setSelectedVariant(
-          loaded.find(
-            (variant) =>
-              variant.is_available
-          ) ||
+          loaded.find((variant) => variant.id === requestedColor) ||
+            loaded.find((variant) => variant.is_available) ||
             loaded[0] ||
             null
         );
@@ -900,9 +902,9 @@ export default function ProductModal({
 
   const productPageUrl =
     product.slug && productPageBaseUrl
-      ? `${productPageBaseUrl}/products/${encodeURIComponent(
-          product.slug
-        )}`
+      ? `${productPageBaseUrl}/products/${encodeURIComponent(product.slug)}${
+          selectedVariant ? `?color=${encodeURIComponent(selectedVariant.id)}` : ""
+        }`
       : "";
 
   async function copyProductLink() {
