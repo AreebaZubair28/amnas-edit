@@ -1,8 +1,8 @@
 # Amna's Edit
 
-**A modern, inquiry-based fashion catalogue with an owner-managed dashboard.**
+**A curated fashion storefront and product-management platform, built around direct customer enquiries.**
 
-Amna's Edit is a full-stack web application built for browsing curated fashion products, exploring variants, discovering promotions, and contacting the business directly. Instead of a conventional shopping cart or payment checkout, customers make enquiries through the available contact channels.
+Amna's Edit is a full-stack web application built for browsing curated fashion products, exploring variants, discovering promotions, and contacting the business directly. Featured products rotate in the homepage hero, and visitors can explore color variants before sharing or enquiring about a product. The platform uses direct enquiries rather than an online cart or checkout.
 
 **Live website:** [amnas-edit.vercel.app](https://amnas-edit.vercel.app)  
 
@@ -34,10 +34,15 @@ Amna's Edit is a full-stack web application built for browsing curated fashion p
 - Search and filters for product status, category, brand, gender, and price.
 - Product image galleries and color/variant information, including variant-specific content where configured.
 - Availability labels for **In Stock** and **Sold Out** products.
-- Shareable product links and related-product recommendations.
+- Featured-product carousel on the homepage, with automatic rotation and manual navigation.
+- Native **Share Product** action with a copy-link fallback; color selection is preserved in shared links.
+- Color-specific product-page previews for WhatsApp and other services that read Open Graph metadata, subject to platform caching.
+- Related-product recommendations.
 - Scheduled promotions and visible promotional pricing.
 - Customer ratings and reviews, subject to moderation.
-- Direct WhatsApp and Instagram enquiries rather than an integrated checkout.
+- Direct WhatsApp product enquiries with selected-color context.
+- Instagram enquiry workflow with a copy-ready product message and link to the configured Instagram destination; Instagram does **not** reliably support prefilled standard DMs.
+- No integrated checkout or payment capture.
 - Search-engine and social-sharing metadata, sitemap, and robots configuration.
 
 ### Owner dashboard
@@ -46,13 +51,13 @@ Authenticated owners can access these protected sections:
 
 | Route | Purpose |
 | --- | --- |
-| `/admin` | Inventory overview and interaction analytics |
-| `/admin/products` | Product listings, variants, photos, pricing, and availability |
+| `/admin` | Product overview and interaction analytics |
+| `/admin/products` | Product listings, photos, color variants, pricing, availability, and catalogue filters |
 | `/admin/promotions` | Scheduled promotions and discount rules |
 | `/admin/reviews` | Review approval, visibility, and moderation |
 | `/admin/settings` | Brand, category, contact, content, and policy settings |
 
-The dashboard provides product management, controlled image uploads, site configuration, and aggregate product-interest reporting. Owners authenticate through Supabase Authentication; public visitors do not have access to administration routes.
+The dashboard provides product management, controlled image uploads, catalogue search and filters, featured-product selection, site configuration, and aggregate product-interest reporting. Multiple products can be featured; eligible featured products rotate through the home hero. Owners authenticate through Supabase Authentication; public visitors do not have access to administration routes.
 
 ### Analytics
 
@@ -131,7 +136,7 @@ Use the actual deployment URL for `NEXT_PUBLIC_SITE_URL` in production. Never co
 
 ### 3. Prepare Supabase
 
-The `supabase/` folder contains the initial schema and subsequent compatibility, security, promotion, review, variant, and analytics migrations.
+The `supabase/` folder contains the initial schema and subsequent compatibility, security, promotion, review, variant, and analytics migrations. The exact set of migrations to apply depends on the current database state.
 
 - For a **new** database, begin by reviewing `supabase/schema.sql` in the Supabase SQL Editor, then apply the relevant follow-up migrations in dependency order.
 - For an **existing** database, **do not rerun all SQL files blindly**. Review the current schema and apply only the migrations that are missing.
@@ -184,7 +189,7 @@ Playwright covers desktop Chromium and a mobile Chromium device profile, includi
 
 For owner tests, set `ADMIN_E2E_EMAIL` and `ADMIN_E2E_PASSWORD` in your **local terminal environment**. Do not store credentials in the repository. Authenticated owner tests are intentionally restricted to localhost and do not perform database writes.
 
-**Latest locally reported verification (October 2026):** ESLint passed without warnings, TypeScript passed, the production build succeeded, and **30 Playwright tests passed**. This reports the development machine's results, not an automated production verification or a guarantee of accessibility conformance.
+**Verification history:** An earlier release passed ESLint, TypeScript, a production build, and **30 Playwright checks** (October 2026). The most recent sharing, admin-filter, and featured-carousel changes require a fresh run of these checks before deployment. Automated accessibility results do not guarantee full WCAG conformance.
 
 See [production readiness checklist](docs/PRODUCTION_READINESS.md) for additional verification and release steps.
 
@@ -206,8 +211,22 @@ The project is deployed with **Vercel**.
 2. Connect the repository to a Vercel project.
 3. Configure the required environment variables for the Production environment (including the server-only secrets).
 4. Deploy and confirm the build is successful.
-5. Check home, collection, policies, shared product pages, image loading, enquiries, and protected owner navigation on the deployed site.
+5. Check home, featured-product rotation, collection filters, policies, color-specific product links and previews, native sharing, WhatsApp/Instagram enquiries, and protected owner navigation on the deployed site.
 6. Review the [production readiness checklist](docs/PRODUCTION_READINESS.md) for post-deployment checks.
+
+## Release verification checklist
+
+Before publishing updates, run:
+
+```bash
+npm run lint
+npx tsc --noEmit
+npm test
+npm run build
+npx playwright test
+```
+
+Then verify at least two featured products in the homepage carousel, desktop/mobile gallery sizing, a color-specific share link, the admin product filters, and protected administration access. Run the read-only smoke checks against the deployed domain after Vercel shows the release as ready.
 
 ## Project scope
 

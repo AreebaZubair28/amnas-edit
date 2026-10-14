@@ -127,7 +127,7 @@ export default function PoliciesPage() {
           maxWidth: 900,
           margin: "0 auto",
           padding:
-            "90px 7vw 110px",
+            "clamp(28px, 4vw, 48px) 7vw 76px",
         }}
       >
         <Link
@@ -173,7 +173,7 @@ export default function PoliciesPage() {
             fontSize: 14,
             lineHeight: 1.8,
             margin:
-              "0 0 55px",
+              "0 0 36px",
           }}
         >
           Please review the

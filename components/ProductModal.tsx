@@ -10,8 +10,8 @@ import {
   Instagram,
   MessageCircle,
   Link2,
+  Share2,
   ArrowLeft,
-  Check,
   X,
 } from "lucide-react";
 
@@ -444,6 +444,8 @@ export default function ProductModal({
     copyLinkMessage,
     setCopyLinkMessage,
   ] = useState("");
+
+  const [instagramCopyMessage, setInstagramCopyMessage] = useState("");
 
   const [
     reviewError,
@@ -907,30 +909,70 @@ export default function ProductModal({
         }`
       : "";
 
-  async function copyProductLink() {
+  async function copyInstagramInquiry() {
+    const priceLabel = formatInquiryPrice(displayPrice);
+    const hasDiscount = Boolean(
+      promotion &&
+      originalPrice !== null &&
+      displayPrice !== null &&
+      displayPrice < originalPrice
+    );
+    const inquiry = [
+      "Hi Amna's Edit! I'm interested in this product.",
+      "",
+      `Product: ${product.name}`,
+      ...(selectedVariant ? [`Color: ${selectedVariant.color_name}`] : []),
+      ...(priceLabel ? [`${hasDiscount ? "Sale price" : "Price"}: ${priceLabel}`] : []),
+      ...(productPageUrl ? ["", `Product link: ${productPageUrl}`] : []),
+      "",
+      currentSelectionSoldOut
+        ? "Could you please confirm restock availability?"
+        : "Could you please confirm availability?",
+    ].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(inquiry);
+      setInstagramCopyMessage("Inquiry copied. Open Instagram and paste it into your DM.");
+    } catch {
+      setInstagramCopyMessage("Couldn't copy automatically. Please use WhatsApp or copy the product link instead.");
+    }
+  }
+
+  async function shareProduct() {
     if (!productPageUrl) {
-      setCopyLinkMessage(
-        "Product link is not available right now."
-      );
+      setCopyLinkMessage("Product link is not available right now.");
       return;
+    }
+
+    const shareData = {
+      title: `${product.name} | Amna's Edit`,
+      text: selectedVariant
+        ? `Explore ${product.name} in ${selectedVariant.color_name} at Amna's Edit.`
+        : `Explore ${product.name} at Amna's Edit.`,
+      url: productPageUrl,
+    };
+
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share(shareData);
+        setCopyLinkMessage("");
+        return;
+      } catch (error) {
+        // Closing the native share sheet is not an error and should not copy a link.
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        // Some browsers expose share() but refuse particular share requests.
+        // The clipboard fallback below keeps sharing possible.
+      }
     }
 
     try {
       await navigator.clipboard.writeText(productPageUrl);
-      setCopyLinkMessage("Product link copied.");
-
-      window.setTimeout(() => {
-        setCopyLinkMessage("");
-      }, 2500);
+      setCopyLinkMessage("Product link copied. Paste it anywhere to share.");
     } catch (error) {
-      console.error(
-        "Could not copy product link:",
-        error
-      );
-
-      setCopyLinkMessage(
-        "Could not copy the link. Please try again."
-      );
+      console.error("Could not share product:", error);
+      setCopyLinkMessage("Sharing is unavailable. Please copy the page address from your browser.");
     }
   }
 
@@ -1315,11 +1357,11 @@ export default function ProductModal({
               <button
                 type="button"
                 className="product-permalink"
-                onClick={copyProductLink}
-                aria-label={`Copy link for ${product.name}`}
+                onClick={shareProduct}
+                aria-label={`Share ${product.name}${selectedVariant ? ` in ${selectedVariant.color_name}` : ""}`}
               >
-                {copyLinkMessage === "Product link copied." ? <Check size={15} aria-hidden="true" /> : <Link2 size={15} aria-hidden="true" />}
-                <span>{copyLinkMessage === "Product link copied." ? "Link copied" : "Copy product link"}</span>
+                <Share2 size={15} aria-hidden="true" />
+                <span>Share product</span>
               </button>
 
               {copyLinkMessage && (
@@ -1371,7 +1413,7 @@ export default function ProductModal({
                   }}
                 >
                   <Instagram size={17} />
-                  DM on Instagram
+                  Open Instagram DM
                 </a>
               )}
             </div>
@@ -1379,6 +1421,25 @@ export default function ProductModal({
             <p className="contact-unavailable-note" role="status">
               Direct inquiry is temporarily unavailable. Please check back soon.
             </p>
+          )}
+
+          {ig && (
+            <div style={{ marginTop: 10 }}>
+              <button
+                type="button"
+                className="product-permalink"
+                onClick={() => { void copyInstagramInquiry(); }}
+                aria-label="Copy a product inquiry to paste into Instagram Direct Messages"
+              >
+                <Link2 size={15} aria-hidden="true" />
+                <span>Copy inquiry for Instagram</span>
+              </button>
+              {instagramCopyMessage && (
+                <p className="product-copy-feedback" role="status" aria-live="polite">
+                  {instagramCopyMessage}
+                </p>
+              )}
+            </div>
           )}
 
           <div className="product-secondary-details">

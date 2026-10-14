@@ -4731,8 +4731,18 @@ export default function AdminDashboard({
             PRODUCT SEARCH
         ================================================= */}
 
-        <div className="admin-toolbar">
-          <div className="search">
+        <section className="admin-product-filters" aria-label="Filter products">
+          <div className="admin-product-filters-heading">
+            <div>
+              <h3>Find products</h3>
+              <p>Search and narrow your catalogue.</p>
+            </div>
+            <span className="admin-product-filters-count" aria-live="polite">
+              {filtered.length} of {products.length} products
+            </span>
+          </div>
+          <div className="admin-product-filters-grid">
+          <div className="search admin-product-filter-search">
             <Search size={17} />
 
             <input
@@ -4742,11 +4752,14 @@ export default function AdminDashboard({
                   e.target.value
                 )
               }
-              placeholder="Search products..."
+              placeholder="Search by product name, brand, or category"
+              aria-label="Search products"
             />
           </div>
 
-          <div className="select-wrap">
+          <label className="admin-product-filter-field">
+            <span>Status</span>
+            <div className="select-wrap">
             <select
               value={
                 statusFilter
@@ -4769,9 +4782,12 @@ export default function AdminDashboard({
                 Sold Out
               </option>
             </select>
-          </div>
+            </div>
+          </label>
 
-          <div className="select-wrap">
+          <label className="admin-product-filter-field">
+            <span>Category</span>
+            <div className="select-wrap">
             <select
               value={
                 categoryFilter
@@ -4801,9 +4817,12 @@ export default function AdminDashboard({
                 )
               )}
             </select>
-          </div>
+            </div>
+          </label>
 
-          <div className="select-wrap">
+          <label className="admin-product-filter-field">
+            <span>Brand</span>
+            <div className="select-wrap">
             <select
               value={
                 brandFilter
@@ -4831,9 +4850,12 @@ export default function AdminDashboard({
                 )
               )}
             </select>
-          </div>
+            </div>
+          </label>
 
-          <div className="select-wrap">
+          <label className="admin-product-filter-field">
+            <span>Gender</span>
+            <div className="select-wrap">
             <select
               value={
                 genderFilter
@@ -4860,9 +4882,12 @@ export default function AdminDashboard({
                 Unisex
               </option>
             </select>
-          </div>
+            </div>
+          </label>
 
-          <div className="select-wrap">
+          <label className="admin-product-filter-field">
+            <span>Price range</span>
+            <div className="select-wrap">
             <select
               value={
                 priceRangeFilter
@@ -4897,9 +4922,28 @@ export default function AdminDashboard({
                 Above Rs. 100,000
               </option>
             </select>
-          </div>
+            </div>
+          </label>
         </div>
-
+          <div className="admin-product-filters-footer">
+            <span>{filtered.length === products.length ? "Showing all products" : "Filters applied"}</span>
+            <button
+              type="button"
+              className="admin-product-filters-reset"
+              disabled={!query && statusFilter === "All" && categoryFilter === "All" && brandFilter === "All" && genderFilter === "All" && priceRangeFilter === "All"}
+              onClick={() => {
+                setQuery("");
+                setStatusFilter("All");
+                setCategoryFilter("All");
+                setBrandFilter("All");
+                setGenderFilter("All");
+                setPriceRangeFilter("All");
+              }}
+            >
+              Reset filters
+            </button>
+          </div>
+        </section>
         {/* =================================================
             PRODUCT TABLE
         ================================================= */}
@@ -5656,6 +5700,9 @@ export default function AdminDashboard({
 
                 Feature this product
               </label>
+              <p className="admin-field-hint" style={{ margin: "-4px 0 16px", fontSize: 12, lineHeight: 1.6, color: "var(--muted)" }}>
+                You can feature multiple products. The newest featured product with a cover image appears in the homepage hero; other featured products remain highlighted in the catalogue.
+              </p>
 
               <div className="admin-guidance-note">
                 <strong>Image setup:</strong>{" "}

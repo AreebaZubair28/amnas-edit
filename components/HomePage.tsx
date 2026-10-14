@@ -8,6 +8,8 @@ import {
     MessageCircle,
     ArrowRight,
     Star,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -633,11 +635,40 @@ export default function HomePage() {
         [products]
     );
 
-    const heroProduct =
-        products.find(
-            (product) =>
-                product.image_url
-        ) || null;
+    // Rotate through every featured product with a cover image.
+    // If none is featured, use the latest product image as a static fallback.
+    const heroProducts = useMemo(() => {
+        const withCover = products
+            .filter((product) => !!product.image_url)
+            .sort((a, b) =>
+                new Date(b.created_at).getTime() -
+                new Date(a.created_at).getTime()
+            );
+        const featured = withCover.filter((product) => product.featured);
+        return featured.length > 0 ? featured : withCover.slice(0, 1);
+    }, [products]);
+    const [heroIndex, setHeroIndex] = useState(0);
+    const [heroPaused, setHeroPaused] = useState(false);
+    const [reduceMotion, setReduceMotion] = useState(false);
+
+    useEffect(() => {
+        const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+        const updatePreference = () => setReduceMotion(preference.matches);
+        updatePreference();
+        preference.addEventListener("change", updatePreference);
+        return () => preference.removeEventListener("change", updatePreference);
+    }, []);
+
+    useEffect(() => {
+        if (heroProducts.length < 2 || heroPaused || reduceMotion) return;
+        const interval = window.setInterval(() => {
+            setHeroIndex((current) => (current + 1) % heroProducts.length);
+        }, 4500);
+        return () => window.clearInterval(interval);
+    }, [heroProducts.length, heroPaused, reduceMotion]);
+
+    const activeHeroIndex = heroIndex % Math.max(heroProducts.length, 1);
+    const heroProduct = heroProducts[activeHeroIndex] ?? null;
 
     const averageRating =
         reviews.length > 0
@@ -810,9 +841,19 @@ export default function HomePage() {
                     </div>
                 </div>
 
-                <div className="home-hero-image">
+                <div
+                    className="home-hero-image"
+                    onMouseEnter={() => setHeroPaused(true)}
+                    onMouseLeave={() => setHeroPaused(false)}
+                    onFocusCapture={() => setHeroPaused(true)}
+                    onBlurCapture={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget)) setHeroPaused(false);
+                    }}
+                    aria-label="Featured products"
+                >
                     {heroProduct?.image_url ? (
                         <StorefrontImage
+                            key={heroProduct.id}
                             src={heroProduct.image_url}
                             alt={heroProduct.name}
                             width={1200}
@@ -830,14 +871,42 @@ export default function HomePage() {
                         </div>
                     )}
 
-                    <div className="home-hero-label">
-                        <span>
-                            AMNA&apos;S EDIT
-                        </span>
-                        <strong>
-                            Curated pieces.
-                        </strong>
+                    <div className="home-hero-label" aria-live="off">
+                        <span>FEATURED EDIT</span>
+                        <strong>{heroProduct?.name || "Curated pieces."}</strong>
                     </div>
+                    {heroProducts.length > 1 && (
+                        <div className="home-hero-controls" aria-label="Featured product carousel controls">
+                            <button
+                                type="button"
+                                className="home-hero-arrow"
+                                aria-label="Previous featured product"
+                                onClick={() => setHeroIndex((current) => (current - 1 + heroProducts.length) % heroProducts.length)}
+                            >
+                                <ChevronLeft size={18} />
+                            </button>
+                            <div className="home-hero-dots" aria-label="Choose a featured product">
+                                {heroProducts.map((product, index) => (
+                                    <button
+                                        key={product.id}
+                                        type="button"
+                                        className={index === activeHeroIndex ? "home-hero-dot is-active" : "home-hero-dot"}
+                                        aria-label={`Show featured product ${index + 1}: ${product.name}`}
+                                        aria-current={index === activeHeroIndex ? "true" : undefined}
+                                        onClick={() => setHeroIndex(index)}
+                                    />
+                                ))}
+                            </div>
+                            <button
+                                type="button"
+                                className="home-hero-arrow"
+                                aria-label="Next featured product"
+                                onClick={() => setHeroIndex((current) => (current + 1) % heroProducts.length)}
+                            >
+                                <ChevronRight size={18} />
+                            </button>
+                        </div>
+                    )}
                 </div>
             </section>
 
